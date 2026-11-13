@@ -1,0 +1,14 @@
+# Bağımlılıklar ve derleme çıktıları
+node_modules/
+setup/
+paylasim/
+dist/
+
+# Test çıktıları ve yerel veri
+.veri-test/
+*.log
+.env
+
+# Üçüncü taraf ikili dosyalar (Setup içinde gelir); yalnızca lisans bildirimi depoda tutulur
+motor/*
+!motor/UCUNCU-TARAF-LISANSLARI.txt

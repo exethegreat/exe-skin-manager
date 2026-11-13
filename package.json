@@ -1,0 +1,76 @@
+{
+  "name": "skin-yonetici",
+  "version": "1.0.0",
+  "description": "EXE Skin Manager - sade League of Legends skin yöneticisi",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test:motor": "node test/motor-test.js",
+    "test:ui": "electron test/ui-test.js",
+    "paketle": "electron-packager . \"EXE Skin Manager\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=src/ui/icon.ico --extra-resource=motor --extra-resource=src/ui/icon.ico --app-copyright=\"© ExeTheGreat 2016\" --win32metadata.CompanyName=ExeTheGreat --win32metadata.FileDescription=\"EXE Skin Manager\" --win32metadata.ProductName=\"EXE Skin Manager\" --ignore=\"^/(\\.veri-test|test|motor|dist|ExeIntro|build|icon\\.jfif)($|/)\"",
+    "ikon": "node build/ico-yap.js",
+    "setup": "electron-builder --win nsis --x64",
+    "paylasim": "npm run setup && node build/paylasim.js"
+  },
+  "dependencies": {
+    "node-stream-zip": "^1.15.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "18.3.6",
+    "electron": "^35.7.5",
+    "electron-builder": "^26.18.0"
+  },
+  "author": "ExeTheGreat",
+  "build": {
+    "appId": "com.exethegreat.skinmanager",
+    "productName": "EXE Skin Manager",
+    "copyright": "© ExeTheGreat 2016",
+    "directories": {
+      "output": "setup"
+    },
+    "files": [
+      "package.json",
+      "src/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "motor",
+        "to": "motor"
+      },
+      {
+        "from": "src/ui/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "LISANS.txt",
+        "to": "LISANS.txt"
+      }
+    ],
+    "asar": true,
+    "compression": "normal",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src/ui/icon.ico",
+      "legalTrademarks": "ExeTheGreat"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "EXE Skin Manager",
+      "uninstallDisplayName": "EXE Skin Manager",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "EXE-Skin-Manager-Setup-${version}.exe"
+    }
+  }
+}

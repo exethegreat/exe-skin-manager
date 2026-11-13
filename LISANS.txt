@@ -1,0 +1,66 @@
+EXE SKIN MANAGER - LİSANS / LICENSE
+===================================
+© ExeTheGreat 2016. Tüm hakları saklıdır. / All rights reserved.
+
+
+TÜRKÇE
+------
+1) İzin
+   Bu yazılımı, yazarı tarafından size verilen kopyayla, kişisel ve ticari olmayan amaçlarla
+   kullanabilirsiniz.
+
+2) Kısıtlar
+   Yazarın yazılı izni olmadan yazılımı satamaz, kiralayamaz, üçüncü kişilere dağıtamaz ya da
+   herkese açık bir yerde paylaşamazsınız. Yazılımı değiştirip, parçalarını ayırıp ya da yeniden
+   paketleyip yayımlayamazsınız. Telif ve lisans bildirimlerini kaldıramazsınız.
+
+3) Üçüncü taraf bileşenler
+   Yazılım, kendi lisanslarıyla dağıtılan üçüncü taraf bileşenler içerir (Electron, LTK Manager,
+   skin motoru köprüsü vb.). Bu bileşenlerin lisansları kendi sahiplerine aittir ve bu lisans onların
+   haklarını değiştirmez. Ayrıntılar kurulum klasöründeki resources\motor\UCUNCU-TARAF-LISANSLARI.txt
+   dosyasındadır; bu dosya silinmemelidir.
+
+4) Riot Games ile ilişki
+   Bu yazılım Riot Games ile bağlantılı değildir, onlar tarafından onaylanmamış ya da desteklenmemiştir.
+   League of Legends, Riot Games, Inc.'in tescilli markasıdır. Özel (modlu) skin kullanımı Riot Games'in
+   kullanım şartlarına aykırı olabilir; kullanımın ve doğabilecek sonuçların (hesap uyarısı, kısıtlama ya
+   da kapatma dahil) tüm sorumluluğu kullanıcıya aittir.
+
+5) Garanti reddi ve sorumluluk
+   Yazılım "olduğu gibi" sunulur; açık ya da örtük hiçbir garanti verilmez. Yazar, yazılımın
+   kullanımından ya da kullanılamamasından doğan hiçbir zarardan sorumlu değildir.
+
+6) Fesih
+   Bu şartlara uymazsanız verilen izin kendiliğinden sona erer; yazılımı silmeniz gerekir.
+
+
+ENGLISH
+-------
+1) Permission
+   You may use this software, in the copy provided to you by its author, for personal,
+   non-commercial purposes.
+
+2) Restrictions
+   Without the author's written permission you may not sell, rent, distribute to third parties, or
+   publicly share the software. You may not modify, decompile, or repackage it for release, and you
+   may not remove its copyright or license notices.
+
+3) Third-party components
+   The software includes third-party components distributed under their own licenses (Electron,
+   LTK Manager, the skin engine bridge, etc.). Those licenses belong to their owners and this license
+   does not change their terms. Details are in resources\motor\UCUNCU-TARAF-LISANSLARI.txt inside the
+   install folder; that file must not be deleted.
+
+4) Relationship with Riot Games
+   This software is not affiliated with, endorsed by, or sponsored by Riot Games. League of Legends is
+   a registered trademark of Riot Games, Inc. Using custom (modded) skins may violate Riot Games' terms
+   of service; you are solely responsible for your use and its consequences (including account warnings,
+   restrictions, or bans).
+
+5) No warranty and limitation of liability
+   The software is provided "as is", without warranty of any kind, express or implied. The author is
+   not liable for any damage arising from the use of, or inability to use, the software.
+
+6) Termination
+   If you do not comply with these terms, the permission granted ends automatically and you must
+   delete the software.

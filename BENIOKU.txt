@@ -1,0 +1,143 @@
+EXE SKIN MANAGER - BENİOKU
+==========================
+© ExeTheGreat 2016
+
+League of Legends için sade bir skin yöneticisi. Şampiyonu seç, skin'e tıkla, "Uygula"ya bas.
+
+
+1) GEREKENLER
+-------------
+Kurmadan önce bilgisayarında şunlar olmalı:
+
+  - Windows 10 ya da Windows 11 (64 bit)
+  - League of Legends kurulu olmalı
+  - İnternet bağlantısı (skin listesi ve skin dosyaları internetten iner)
+  - Microsoft Visual C++ Yeniden Dağıtılabilir paketi (2015-2022, x64)
+      Çoğu bilgisayarda oyunlarla birlikte zaten kuruludur. Kurulu değilse skin uygularken
+      motor açılmaz ya da hata verir. İndirme bağlantısı:
+      https://aka.ms/vs/17/release/vc_redist.x64.exe
+  - Microsoft Edge WebView2 Runtime
+      Windows 11'de ve güncel Windows 10'da hazır gelir. Skin motoru bununla çalışır.
+      Eksikse: https://developer.microsoft.com/microsoft-edge/webview2/  (Evergreen, "Standalone" ya da "Bootstrapper")
+
+Bunların hiçbiri uygulamanın kendisiyle gelmez; yoksa önce bunları kur.
+
+
+2) KURULUM
+----------
+  1. EXE-Skin-Manager-Setup-1.0.0.exe dosyasına çift tıkla. Yönetici izni gerekmez.
+  2. Windows "Bilinmeyen yayıncı / SmartScreen" uyarısı çıkarsa:
+       "Ek bilgi"  ->  "Yine de çalıştır"
+     (Uygulama imzalı olmadığı için bu uyarı çıkması normaldir.)
+  3. Kurulum bitince uygulama kendiliğinden açılır. Masaüstünde ve Başlat menüsünde
+     "EXE Skin Manager" kısayolu oluşur.
+  4. Antivirüs programın uygulamayı ya da "exe-motor.exe" dosyasını engellerse, uygulamanın
+     kurulu olduğu klasörü antivirüsün istisnalar listesine ekle:
+       %LOCALAPPDATA%\Programs\skin-yonetici
+
+
+3) KULLANIM
+-----------
+  1. Uygulamayı aç. İlk açılışta kısa bir intro oynar ve skin listesi internetten yüklenir.
+  2. Soldan bir şampiyon seç. Sağda o şampiyonun skin'leri resimleriyle gelir.
+  3. İstediğin skin'e tıkla. Her şampiyon için tek skin seçilir; yenisine tıklarsan eskisi kalkar.
+     Skin ilk seçildiğinde bilgisayarına iner, bir daha inmez.
+     Renk paketi olan skin'lerin kartının altında renkli noktalar çıkar: noktanın üzerine gelince
+     rengin adı görünür, tıklayınca o renk seçilir. Seçili noktaya tekrar basarsan ana skine dönersin.
+     Bazı skin'lerin ayrıca "Form 2", "Level 16" gibi form/aşama seçenekleri vardır: etikete tıkla;
+     yanındaki noktalar o formun renkleridir.
+     "Şampiyon (Klasik)" kartı, şampiyonun varsayılan görünümünün renk paketleridir; yalnızca renk seçilir.
+  4. Altta "Uygula"ya bas. "Skinler hazır - oyuna girebilirsin" yazısını bekle.
+  5. League'i aç ve maça gir. Oynarken EXE Skin Manager açık kalmalı.
+  6. Seçimini değiştirirsen "Güncelle"ye bas. İşin bitince "Durdur"a bas ya da uygulamayı kapat.
+
+Diğer özellikler:
+  - Seçilenler: seçtiğin tüm skin'leri tek listede gösterir, buradan kaldırabilirsin.
+  - Kendi dosyalarım: elinde hazır skin dosyası (.fantome, .zip, .wad, .modpkg) ya da klasör varsa pencereye sürükle-bırak.
+    Eklenenler listede kalır: tikini kaldırırsan yalnızca devre dışı olur, silinmez. Silmek için ✕ düğmesi var.
+    ⤓ düğmesi dosyanın içindekileri seçtiğin klasöre çıkarır (WAD/<wad adı>/... düzeniyle).
+  - Sol üstteki ☀ / ☾ düğmesi aydınlık ve karanlık tema arasında geçiş yapar.
+
+Dil: 13 dil desteklenir (Türkçe, İngilizce, Almanca, Fransızca, Rusça, Arapça, Lehçe, İspanyolca,
+  Çince, Portekizce, Endonezce, Japonca, Hintçe). Sol menüden "Ayarlar" -> "Dil ayarları" bölümünden seç.
+  Arayüzün tamamı ile şampiyon, skin ve renk adları seçilen dile çevrilir. Uygulama her açılışta Türkçe başlar;
+  seçtiğin dil uygulama kapanana kadar geçerlidir. Hintçede şampiyon/skin adları İngilizce görünür (oyunun Hintçe
+  yerelleştirmesi yoktur), arayüz Hintçe olur. Bu BENIOKU.txt dosyası yalnızca Türkçedir.
+
+Oyun klasörü bulunamazsa:
+  Sol menüden "Ayarlar"a gir. League klasörünü ("League of Legends.exe" dosyasının olduğu klasör,
+  genellikle C:\Riot Games\League of Legends\Game) kutuya yaz ya da "Gözat" ile seç; "Otomatik bul"
+  düğmesi de aramayı yeniden dener.
+
+
+4) GÜNCELLEME
+-------------
+A) Skin listesi ve yeni skin'ler
+   Kendiliğinden güncellenir. Uygulama her açılışta (en geç 6 saatte bir) listeyi yeniler. Yeni oyun
+   yaması çıkınca, daha önce indirdiğin skin'ler bir sonraki "Uygula"da yeni sürümleriyle yeniden iner.
+   Sol alttaki "Yama" yazısı, skin kaynağının hangi yamaya göre hazırlandığını gösterir.
+
+B) Uygulamanın yeni sürümü
+   Yeni "EXE-Skin-Manager-Setup-....exe" dosyasını çalıştır. Eskisinin üstüne kurulur. Ayarların ve
+   indirdiğin skin'ler korunur (veriler %APPDATA%\skin-yonetici klasöründe durur).
+
+   Yeni sürüm olup olmadığını uygulama kendisi söyler: Ayarlar -> "Güncellemeler" bölümü motorun (LTK Manager)
+   kurulu ve en son sürümünü gösterir; yeni sürüm varsa Ayarlar menüsünde bir nokta belirir ve
+   "İndirme sayfasını aç" düğmesi çıkar. Uygulama kendiliğinden bir şey indirip kurmaz; kurulumu sen yaparsın.
+   Her açılışta (en geç 6 saatte bir) denetlenir; "Şimdi denetle" ile elle de bakabilirsin.
+
+C) Motor (LTK Manager) güncelleme  <-- sadece gerekirse
+   Skin'leri oyuna uygulayan parça LTK Manager'dır. Oyun yaması sonrası şu belirtilerden biri varsa
+   güncelle:
+     - "Uygula" hata veriyor ya da "hazır" yazısı hiç gelmiyor
+     - "Hazır" yazıyor ama oyunda skin görünmüyor
+     - Oyun açılırken çöküyor
+   Önce bir iki gün beklemek de işe yarayabilir: yeni LTK Manager sürümü yamadan hemen sonra
+   çıkmayabilir.
+
+   Adımlar:
+     1. EXE Skin Manager'ı kapat. League de kapalı olsun.
+     2. LTK Manager'ın son sürümünü indirip kur:
+          https://github.com/LeagueToolkit/ltk-manager/releases
+        (En üstteki sürümün Windows kurulum dosyası.)
+     3. Kurulum klasörünü aç; genellikle C:\Program Files\LTK Manager
+        Buradan şu İKİ dosyayı kopyala:
+          ltk-manager.exe
+          ltk_patcher_host.exe
+     4. EXE Skin Manager'ı aç, sol menüden "Ayarlar"a gir, en alttaki "Güncelleme klasörünü aç"
+        düğmesine bas. Açılan klasöre iki dosyayı yapıştır.
+        (Klasör: %APPDATA%\skin-yonetici\motor-guncel)
+     5. EXE Skin Manager'ı kapatıp yeniden aç, "Uygula"ya bas. Yeni sürüm kendiliğinden kullanılır.
+
+   Geri almak için: motor-guncel klasöründeki iki dosyayı sil; uygulama kendi içindeki sürüme döner.
+   Not: bu klasörde dosya durduğu sürece o kullanılır. Uygulamanın yeni bir Setup'ı daha yeni bir
+   motorla gelirse, motor-guncel klasörünü boşalt.
+
+
+5) SORUN ÇÖZME
+--------------
+  - "Başka bir skin programı açık" uyarısı: o programı kapat, sonra tekrar dene.
+  - Skin listesi gelmiyor: internet bağlantısını kontrol et, uygulamayı yeniden aç.
+  - Bazı skin'ler "depoda bulunamadı" der: skin kaynağında henüz yok demektir, birkaç gün sonra dene.
+  - Motor hiç açılmıyor: 1. maddedeki Visual C++ paketini kur.
+  - Uygulama açılıp hemen kapanıyorsa: antivirüs engelliyor olabilir, 2. maddenin 4. adımına bak.
+
+
+6) KALDIRMA
+-----------
+Windows Ayarlar -> Uygulamalar -> "EXE Skin Manager" -> Kaldır.
+Ayarların ve indirdiğin skin'ler kaldırınca silinmez; tamamen silmek istersen şu klasörü elle sil:
+  %APPDATA%\skin-yonetici
+
+
+7) ÖNEMLİ UYARI
+---------------
+Özel (modlu) skin'ler Riot Games'in kullanım şartlarına aykırıdır. Kullanımın ve doğabilecek
+sonuçlar (hesap uyarısı, kısıtlama ya da kapatma dahil) tamamen sana aittir. Bu program Riot Games
+ile bağlantılı değildir.
+
+Bu yazılımın lisansı (kişisel, ticari olmayan kullanım; izinsiz dağıtım yasak) Ayarlar -> "Lisans" bölümünde
+okunabilir ve LISANS.txt dosyası olarak Setup'ın yanında gelir.
+
+Üçüncü taraf bileşenlerin lisansları uygulama klasöründeki resources\motor\UCUNCU-TARAF-LISANSLARI.txt
+dosyasındadır; silinmemelidir.

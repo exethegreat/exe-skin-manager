@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com https://raw.communitydragon.org"
+    />
+    <title>EXE Skin Manager</title>
+    <script src="tema.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="uyari" class="uyari" hidden>
+      <span data-i18n="uyariKlasor"></span>
+      <button id="uyariBtn" class="ikincil" data-i18n="ayarlaraGit"></button>
+    </div>
+
+    <div class="govde">
+      <aside>
+        <div class="ust">
+          <input id="ara" type="search" data-i18n-ph="ara" autocomplete="off" />
+          <button id="tema" class="ikincil tema" aria-label="theme">☀</button>
+        </div>
+        <nav id="sol"></nav>
+        <div class="imza"><span dir="ltr">© ExeTheGreat 2016</span><span id="yama"></span></div>
+      </aside>
+      <section>
+        <div class="baslik">
+          <h1 id="baslik"></h1>
+          <button id="baslikBtn" class="ikincil" hidden></button>
+        </div>
+        <main id="liste"></main>
+      </section>
+    </div>
+
+    <footer>
+      <div id="durum" class="durum idle">
+        <span class="nokta"></span>
+        <span id="durumMetin"></span>
+      </div>
+      <span id="sayi" class="sayi"></span>
+      <button id="durdur" class="ikincil tehlike" data-i18n="durdur" hidden></button>
+      <button id="ana" class="ana"></button>
+    </footer>
+
+    <div id="birak" class="birak" data-i18n="birak" hidden></div>
+    <script src="diller.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
