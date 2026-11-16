@@ -326,7 +326,17 @@ engine.on("status", (line) => {
   if (d) setStatus(...d);
 });
 engine.on("warning", (m) => console.warn("[motor uyarı]", m));
-engine.on("error-message", (m) => setStatus("error", { k: "sHata", v: { m: String(m).replace(/^error /, "") } }));
+// Motorun başlangıçta verdiği, zararsız olduğu bilinen geçici hatalar (bkz. engine.js stop yutma listesi)
+// arayüzde kırmızı yanıp sönmesin; "overlay live" zaten hemen ardından geliyor.
+const zararsizMotorHatasi = /get_patcher_status|settings restoration|not allowed by ACL/i;
+engine.on("error-message", (m) => {
+  const mesaj = String(m).replace(/^error /, "");
+  if (zararsizMotorHatasi.test(mesaj)) {
+    console.warn("[motor zararsız hata]", mesaj);
+    return;
+  }
+  setStatus("error", { k: "sHata", v: { m: mesaj } });
+});
 // Manager'ın sağlık denetiminde onarılamaz çıkan modların adları (boşsa sorun yok)
 let kotuAdlar = "";
 engine.on("idle", (m) => {
