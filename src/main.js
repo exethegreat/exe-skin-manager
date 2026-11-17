@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const StreamZip = require("node-stream-zip");
-const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu } = require("./engine");
+const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu, tarifCikar, senkronDenetim, reSync } = require("./engine");
 const G = require("./guncelleme");
 const modpkg = require("./modpkg");
 const { Catalog } = require("./catalog");
@@ -17,6 +17,8 @@ const motorDir = app.isPackaged ? path.join(process.resourcesPath, "motor") : pa
 const userData = app.getPath("userData");
 const skinsDir = path.join(userData, "skinler");
 const stateFile = path.join(userData, "durum.json");
+// Mod Re-sync: tarifler\<id>.json (ekleme anındaki tarif) + tarifler\<id>.synced.fantome (senkron türevi; orijinal dokunulmaz)
+const tarifDir = path.join(userData, "tarifler");
 
 let win = null;
 // selected: {şampiyonKey: skinNum | "skinNum:varyantId"} (şampiyon başına tek skin; varyant = renk paketi ya da form); custom: kullanıcının kendi eklediği dosyalar
@@ -162,7 +164,14 @@ async function view() {
     selected: Object.fromEntries(Object.entries(state.selected).map(([k, v]) => [k, secimCoz(v)]).filter(([, m]) => m)),
     indirilen: [...catalog.indirilen],
     suren: [...catalog.suren.keys()],
-    custom: state.custom.map(({ id, name, author, selected }) => ({ id, name, author, selected })),
+    custom: state.custom.map(({ id, name, author, selected, synced }) => ({
+      id,
+      name,
+      author,
+      selected,
+      senkronGerek: !!senkronGerek.get(id),
+      senkronlu: !!synced
+    })),
     status: { kind: status.kind, text: metin(status.desc) },
     patch: catalog.data.patch,
     resmiYama: state.yama,
@@ -193,6 +202,91 @@ function setStatus(kind, desc) {
 function secimDegisti() {
   if (running()) dirty = true;
 }
+
+// ---------------- Mod Re-sync ----------------
+// Sidecar tarifler\<id>.json = { tarif, senkron: {yama, ozetler, tarih} | null }.
+// Tarif modun eklendiği anda (mod o yamada çalışırken) çıkarılır; senkron her zaman orijinal + tariften üretilir.
+const tarifYolu = (id) => path.join(tarifDir, `${id}.json`);
+const senkronYolu = (id) => path.join(tarifDir, `${id}.synced.fantome`);
+const tarifUygun = (file) => /\.(fantome|zip)$/i.test(file);
+const senkronGerek = new Map(); // id -> bool; view() sık çağrıldığı için önbellek (senkronDenetle günceller)
+
+async function tarifOku(id) {
+  try {
+    return JSON.parse(await fsp.readFile(tarifYolu(id), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function tarifYaz(id, kayit) {
+  await fsp.mkdir(tarifDir, { recursive: true });
+  const tmp = tarifYolu(id) + ".tmp";
+  await fsp.writeFile(tmp, JSON.stringify(kayit));
+  await fsp.rename(tmp, tarifYolu(id));
+}
+
+async function tarifKaydet(s) {
+  if (!tarifUygun(s.file) || !(await gameOk(state.gamePath))) return false;
+  try {
+    const tarif = await tarifCikar(s.file, state.gamePath, { yama: state.yama || null });
+    await tarifYaz(s.id, { tarif, senkron: null });
+    s.tarifVar = true;
+    s.yama = state.yama || "";
+    return true;
+  } catch (e) {
+    console.warn("tarif çıkarılamadı:", s.name, e.message);
+    return false;
+  }
+}
+
+// Senkronlanmış modda karşılaştırma tabanı, senkron anındaki oyun bin'leridir (yoksa ekleme anındaki).
+function denetimTarifi(kayit) {
+  const oz = (kayit.senkron && kayit.senkron.ozetler) || {};
+  return { ...kayit.tarif, binler: kayit.tarif.binler.map((b) => (oz[b.hash] ? { ...b, oyunOzet: oz[b.hash] } : b)) };
+}
+
+async function gerekMi(s) {
+  const kayit = await tarifOku(s.id);
+  if (!kayit || !kayit.tarif) return false;
+  try {
+    return (await senkronDenetim(denetimTarifi(kayit), state.gamePath)).gerek;
+  } catch {
+    return false;
+  }
+}
+
+// Tüm özel modları denetler; tarifi olmayan (bu özellikten önce eklenmiş) modlara şimdiki yamadan tarif çıkarır.
+let senkronIs = null;
+function senkronDenetle() {
+  if (senkronIs) return senkronIs;
+  senkronIs = (async () => {
+    if (!(await gameOk(state.gamePath))) {
+      senkronGerek.clear();
+      return;
+    }
+    let kaydet = false;
+    let degisti = false;
+    for (const s of [...state.custom]) {
+      if (!s.tarifVar && tarifUygun(s.file) && (await tarifKaydet(s))) kaydet = true;
+      const gerek = await gerekMi(s);
+      if (senkronGerek.get(s.id) !== gerek) {
+        senkronGerek.set(s.id, gerek);
+        degisti = true;
+      }
+    }
+    if (kaydet) await saveState();
+    if (degisti) yayinla();
+  })()
+    .catch((e) => console.warn("senkron denetimi:", e.message))
+    .finally(() => {
+      senkronIs = null;
+    });
+  return senkronIs;
+}
+
+// Uygula'da kullanılacak dosya: senkron türevi varsa o, yoksa orijinal.
+const uygulanacak = (s) => (s.synced && fs.existsSync(s.synced) ? s.synced : s.file);
 
 // Klasörü fantome girdilerine çevirir. Kabul edilen düzenler: içinde WAD/ (ya da WAD_*/, RAW*/) klasörü olan hazır fantome düzeni,
 // klasörün kendisi "Ad.wad.client" olması, ya da içinde "Ad.wad.client" klasörleri/dosyaları olması.
@@ -259,7 +353,10 @@ async function addSkinFile(src) {
   } else return false;
   const info = await readSkinInfo(file);
   const ad = info.name.replace(new RegExp(`^${id}_`), "").replace(SKIN_RE, "") || temiz;
-  state.custom.push({ id, file, name: ad, author: info.author === "Unknown" ? "" : info.author, selected: true });
+  const kayit = { id, file, name: ad, author: info.author === "Unknown" ? "" : info.author, selected: true };
+  state.custom.push(kayit);
+  await tarifKaydet(kayit); // mod şu an (ekleme anında) çalışıyor varsayılır: yazar niyeti = mod − güncel oyun
+  senkronGerek.set(id, false);
   return true;
 }
 
@@ -450,6 +547,9 @@ const handlers = {
     if (i >= 0) {
       const [s] = state.custom.splice(i, 1);
       if (path.dirname(s.file) === skinsDir) await fsp.rm(s.file, { force: true });
+      await fsp.rm(tarifYolu(s.id), { force: true });
+      await fsp.rm(senkronYolu(s.id), { force: true });
+      senkronGerek.delete(s.id);
       if (s.selected) secimDegisti();
       await saveState();
     }
@@ -474,12 +574,36 @@ const handlers = {
     await shell.openPath(k);
     return view();
   },
+  // Güncel yamaya senkron: orijinal mod + tarif → tarifler\<id>.synced.fantome; Uygula bundan sonra türevi kullanır.
+  "mod:senkronla": async (_e, id) => {
+    const s = state.custom.find((x) => x.id === id);
+    if (!s) return view();
+    if (!(await gameOk(state.gamePath))) throw new Hata("eOyunKlasoruYok");
+    const kayit = await tarifOku(id);
+    if (!kayit || !kayit.tarif) throw new Hata("eTarifYok");
+    setStatus("working", { k: "sSenkronlaniyor", v: { ad: s.name } });
+    try {
+      const { rapor, ozetler } = await reSync(s.file, kayit.tarif, state.gamePath, senkronYolu(id));
+      kayit.senkron = { yama: state.yama || "", ozetler, tarih: Date.now() };
+      await tarifYaz(id, kayit);
+      s.synced = senkronYolu(id);
+      if (s.selected) secimDegisti();
+      await saveState();
+      senkronGerek.set(id, await gerekMi(s));
+      setStatus("idle", { k: "sSenkronlandi", v: { ad: s.name, n: rapor.senkronEntry } });
+      return { ...(await view()), rapor };
+    } catch (e) {
+      setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
+      throw e;
+    }
+  },
   "oyun:yaz": async (_e, girdi) => {
     if (running()) throw new Hata("eOnceDurdur");
     if (!String(girdi || "").trim()) throw new Hata("eYolBos");
     const p = await oyunKlasoru(girdi);
     if (!p) throw new Hata("eKlasorYok");
     state.gamePath = p;
+    senkronDenetle();
     await saveState();
     return view();
   },
@@ -488,6 +612,7 @@ const handlers = {
     const p = await detectGame();
     if (!p) throw new Hata("eOtomatikYok");
     state.gamePath = p;
+    senkronDenetle();
     await saveState();
     return view();
   },
@@ -502,6 +627,7 @@ const handlers = {
       const p = await oyunKlasoru(r.filePaths[0]);
       if (!p) throw new Hata("eSecilenYok");
       state.gamePath = p;
+      senkronDenetle();
       await saveState();
     }
     return view();
@@ -521,7 +647,7 @@ const handlers = {
         if (!catalog.guncel(key, m.num, m.vid)) setStatus("working", { k: "sIndiriliyor", v: { i, n: katalogSecim.length } });
         dosyalar.push(await catalog.indir(key, m.num, m.vid));
       }
-      dosyalar.push(...kendi.map((s) => s.file));
+      dosyalar.push(...kendi.map(uygulanacak));
       setStatus("working", { k: "sHazirlaniyor" });
       dirty = false;
       kotuAdlar = "";
@@ -529,7 +655,7 @@ const handlers = {
       if (kotu && kotu.length) {
         kotuAdlar = kotu
           .map((k) => {
-            const c = state.custom.find((s) => s.file === k.source);
+            const c = state.custom.find((s) => s.file === k.source || s.synced === k.source);
             return c ? c.name : path.basename(k.source).replace(/\.fantome$/i, "");
           })
           .join(", ");
@@ -646,6 +772,8 @@ if (!app.requestSingleInstanceLock()) {
     await Promise.race([dilIs, new Promise((r) => setTimeout(r, 2500))]); // adlar hazırsa pencere yerel adlarla açılsın
     win.show();
     guncellemeDenetle(false).catch(() => {});
+    senkronDenetle(); // yama sonrası bozulan modlar için rozet
+    setInterval(() => { if (!running()) senkronDenetle(); }, 10 * 60 * 1000);
   });
 
   let kapaniyor = false;

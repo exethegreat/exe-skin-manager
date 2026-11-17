@@ -700,6 +700,7 @@ async function senkronDenetim(tarif, gamePath) {
 // Orijinal modFile salt-okunur; sonuç ciktiFile'a (.fantome) yazılır. WAD'lar paket (RW 3.4) olarak yazılır.
 async function reSync(modFile, tarif, gamePath, ciktiFile) {
   const rapor = { senkronEntry: 0, eksikAsset: [], tipUyumsuz: [], yokBin: [] };
+  const ozetler = {}; // hash -> senkronda taban alınan güncel oyun bin özeti (rozet bunu karşılaştırır)
   const tarifBin = new Map((tarif.binler || []).map((b) => [b.hash, b]));
   const indeks = await hashWadIndeksi(gamePath);
   const zip = new StreamZip.async({ file: modFile });
@@ -712,7 +713,7 @@ async function reSync(modFile, tarif, gamePath, ciktiFile) {
       for (const oge of ogeler) {
         let data = await oge.veri();
         const tb = tarifBin.get(oge.hash.toString(16));
-        if (tb && propMu(data)) data = await binSenkronla(gamePath, indeks, tb, data, rapor);
+        if (tb && propMu(data)) data = await binSenkronla(gamePath, indeks, tb, data, rapor, ozetler);
         parcalar.push({ hash: oge.hash, data });
       }
       arsiv.push({ name: `WAD/${ad}`, data: binmotor.wadYaz(parcalar) });
@@ -724,10 +725,10 @@ async function reSync(modFile, tarif, gamePath, ciktiFile) {
   await fsp.writeFile(gecici, buildStoreZip(arsiv));
   await fsp.rename(gecici, ciktiFile);
   rapor.eksikAsset = (await senkronDenetim(tarif, gamePath)).eksikAsset;
-  return { rapor };
+  return { rapor, ozetler };
 }
 
-async function binSenkronla(gamePath, indeks, tb, modBin, rapor) {
+async function binSenkronla(gamePath, indeks, tb, modBin, rapor, ozetler) {
   if (!tb.oyunWad) return modBin; // oyunda karşılığı olmayan bin: modunki aynen kalır
   const oyunWad = indeks.get(tb.hash);
   let oyunBin = null;
@@ -743,6 +744,7 @@ async function binSenkronla(gamePath, indeks, tb, modBin, rapor) {
     rapor.yokBin.push(tb.hash); // güvenlik: ayrışmayan bin üretme
     return modBin;
   }
+  ozetler[tb.hash] = ozet(oyunBin);
   rapor.senkronEntry += r.degisen.length + r.eklenen.length;
   for (const k of r.tipUyumsuz) rapor.tipUyumsuz.push((k >>> 0).toString(16));
   return r.bin;
