@@ -13,7 +13,8 @@ const temiz = { health: "healthy", counts: { fatals: 0, errors: 0, warnings: 0, 
 assert.strictEqual(saglikSinifi(null, 0), null, "denetlenmemiş mod: rozet yok");
 assert.strictEqual(saglikSinifi(temiz, 0), "guncel");
 assert.strictEqual(saglikSinifi(temiz, 126), "fix", "Manager onardıysa FIX");
-assert.strictEqual(saglikSinifi({ health: "unrepairable", counts: { fatals: 0, errors: 0, warnings: 2 }, rules: [{ rule: "bin/object-link" }] }, 0), "fix", "yalnız uyarı: FIX");
+assert.strictEqual(saglikSinifi({ health: "unrepairable", counts: { fatals: 0, errors: 0, warnings: 2 }, rules: [{ rule: "bin/object-link", fixable: 0 }] }, 0), "guncel", "yalnız onarılamaz uyarı: Güncel (FIX tıklanınca bir şey yapamaz)");
+assert.strictEqual(saglikSinifi({ health: "repairable", fixable: 2, counts: { fatals: 0, errors: 0, warnings: 2 }, rules: [{ rule: "bin/x", fixable: 2 }] }, 0), "fix", "onarılabilir uyarı: FIX");
 assert.strictEqual(saglikSinifi({ health: "unrepairable", counts: { fatals: 6, errors: 0, warnings: 2 }, rules: [{ rule: "bin/property-type" }] }, 118), "bozuk", "ölümcül hata: tamir edilemez");
 assert.strictEqual(saglikSinifi({ health: "unrepairable", counts: { fatals: 0, errors: 1, warnings: 0 }, rules: [{ rule: "bin/skinhack" }] }, 0), "bozuk", "skinhack: tamir edilemez");
 

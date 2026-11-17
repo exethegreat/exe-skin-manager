@@ -151,7 +151,12 @@ function saglikSinifi(karar, onarim) {
   const c = karar.counts || {};
   const kurallar = (karar.rules || []).map((r) => String(r.rule || ""));
   if ((c.fatals || 0) > 0 || kurallar.some((r) => /skinhack/i.test(r))) return "bozuk";
-  if ((c.errors || 0) > 0 || (c.warnings || 0) > 0 || (onarim || 0) > 0 || karar.health !== "healthy") return "fix";
+  if ((c.errors || 0) > 0 || (onarim || 0) > 0) return "fix";
+  // Yalnız uyarı (ör. bin/object-link) ve onarılabilir bir şey yoksa: Manager modu kapatmaz, FIX'e tıklamak da bir şey
+  // değiştiremez → yeşil. Onarılabilir uyarı varsa (fixable > 0) FIX kalır.
+  const onarilabilir = (karar.fixable || 0) > 0 || (karar.rules || []).some((r) => (r.fixable || 0) > 0);
+  if ((c.warnings || 0) > 0) return onarilabilir ? "fix" : "guncel";
+  if (karar.health !== "healthy") return "fix";
   return "guncel";
 }
 
