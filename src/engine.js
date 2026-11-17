@@ -9,6 +9,7 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const StreamZip = require("node-stream-zip");
 const { Hata } = require("./hata");
+const binmotor = require("./binmotor");
 
 const exists = (p) => fsp.stat(p).then(() => true, () => false);
 
@@ -491,4 +492,173 @@ class Engine extends EventEmitter {
   }
 }
 
-module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu };
+// ---------------- Mod Re-sync: tarif ----------------
+// Tarif = modun oyun bin'lerinde "sahiplendiği" (eklediği/değiştirdiği) PROP entry'leri.
+// Yama gelip mod bozulunca bu liste güncel bin'e yeniden uygulanır (reSync).
+
+// Oyundaki .wad.client dosyalarını (DATA/FINAL altında) bulur; göreli yollar.
+async function oyunWadlari(gamePath) {
+  const kok = path.join(gamePath, "DATA", "FINAL");
+  const sonuc = [];
+  async function gez(dir) {
+    let ogeler;
+    try { ogeler = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+    for (const o of ogeler) {
+      const tam = path.join(dir, o.name);
+      if (o.isDirectory()) await gez(tam);
+      else if (/\.wad\.client$/i.test(o.name)) sonuc.push(path.relative(gamePath, tam));
+    }
+  }
+  await gez(kok);
+  return sonuc;
+}
+
+// Yalnızca WAD başlığı + TOC okunur (veri değil): hash listesi.
+async function wadTocOku(file) {
+  const fh = await fsp.open(file, "r");
+  try {
+    const bas = Buffer.alloc(272);
+    await fh.read(bas, 0, 272, 0);
+    if (bas.toString("latin1", 0, 2) !== "RW" || bas[2] !== 3) return [];
+    const count = bas.readUInt32LE(268);
+    const toc = Buffer.alloc(count * 32);
+    await fh.read(toc, 0, toc.length, 272);
+    const hashler = new Array(count);
+    for (let i = 0; i < count; i++) hashler[i] = toc.readBigUInt64LE(i * 32);
+    return hashler;
+  } finally {
+    await fh.close();
+  }
+}
+
+// hash(hex) -> oyun WAD göreli yolu. Oyun klasörü + WAD boyut/zamanına göre önbellekli.
+const indeksOnbellek = new Map();
+async function hashWadIndeksi(gamePath) {
+  const wadlar = await oyunWadlari(gamePath);
+  const imzaParca = [];
+  for (const w of wadlar) {
+    const st = await fsp.stat(path.join(gamePath, w)).catch(() => null);
+    if (st) imzaParca.push(`${w}:${st.size}:${st.mtimeMs}`);
+  }
+  const imza = imzaParca.join("|");
+  const eski = indeksOnbellek.get(gamePath);
+  if (eski && eski.imza === imza) return eski.indeks;
+  const indeks = new Map();
+  for (const w of wadlar) {
+    let hashler;
+    try { hashler = await wadTocOku(path.join(gamePath, w)); } catch { continue; }
+    for (const h of hashler) {
+      const k = h.toString(16);
+      if (!indeks.has(k)) indeks.set(k, w);
+    }
+  }
+  indeksOnbellek.set(gamePath, { imza, indeks });
+  return indeks;
+}
+
+// Mod arşivindeki WAD içeriği: Map(wadAdi -> [{hash:bigint, veri:()=>Promise<Buffer>}]).
+// İki biçim: "WAD/x.wad.client/yol/dosya" (açık klasör) veya "WAD/x.wad.client" (paket WAD).
+async function modWadIcerigi(zip) {
+  const sonuc = new Map();
+  const ekle = (ad, oge) => {
+    if (!sonuc.has(ad)) sonuc.set(ad, []);
+    sonuc.get(ad).push(oge);
+  };
+  for (const e of Object.values(await zip.entries())) {
+    if (e.isDirectory) continue;
+    const ad = e.name.replace(/\\/g, "/");
+    const m = /^wad\/([^/]+\.wad(?:\.client)?)(?:\/(.+))?$/i.exec(ad);
+    if (!m) continue;
+    const wadAdi = m[1].toLowerCase().replace(/\.wad$/, ".wad.client");
+    if (m[2]) {
+      const dosya = path.posix.basename(m[2]);
+      const hex = /^([0-9a-f]{16})(\.[a-z0-9]+)?$/i.exec(dosya);
+      const hash = hex && m[2] === dosya ? BigInt("0x" + hex[1]) : binmotor.yolHash(m[2]);
+      ekle(wadAdi, { hash, veri: () => zip.entryData(e) });
+    } else {
+      const wbuf = await zip.entryData(e);
+      for (const we of binmotor.wadOku(wbuf).entries) {
+        ekle(wadAdi, { hash: we.hash, veri: async () => binmotor.wadEntryVeri(wbuf, we) });
+      }
+    }
+  }
+  return sonuc;
+}
+
+// Oyun WAD'ından tek bir entry'yi okur (yoksa null).
+// Dev WAD'ı (Global ~GB) belleğe almamak için yalnızca TOC + o entry'nin baytları okunur.
+async function oyunEntryOku(gamePath, oyunWad, hash) {
+  const fh = await fsp.open(path.join(gamePath, oyunWad), "r");
+  try {
+    const bas = Buffer.alloc(272);
+    await fh.read(bas, 0, 272, 0);
+    if (bas.toString("latin1", 0, 2) !== "RW" || bas[2] !== 3) return null;
+    const count = bas.readUInt32LE(268);
+    const toc = Buffer.alloc(count * 32);
+    await fh.read(toc, 0, toc.length, 272);
+    for (let i = 0; i < count; i++) {
+      if (toc.readBigUInt64LE(i * 32) !== hash) continue;
+      const b = i * 32;
+      const e = { offset: 0, compSize: toc.readUInt32LE(b + 12), tip: toc[b + 20] & 0x0f };
+      const blob = Buffer.alloc(e.compSize);
+      await fh.read(blob, 0, e.compSize, toc.readUInt32LE(b + 8));
+      return binmotor.wadEntryVeri(blob, e);
+    }
+    return null;
+  } finally {
+    await fh.close();
+  }
+}
+
+function propMu(buf) {
+  return buf.length >= 8 && buf.toString("latin1", 0, 4) === "PROP";
+}
+
+async function tarifCikar(modFile, gamePath, secenek = {}) {
+  const zip = new StreamZip.async({ file: modFile });
+  try {
+    const icerik = await modWadIcerigi(zip);
+    const indeks = await hashWadIndeksi(gamePath);
+    const binler = [];
+    for (const ogeler of icerik.values()) {
+      const binOgeleri = [];
+      const gonderilen = [];
+      for (const oge of ogeler) {
+        let veri;
+        try { veri = await oge.veri(); } catch { continue; }
+        if (propMu(veri)) binOgeleri.push({ hash: oge.hash, veri });
+        else gonderilen.push(oge.hash.toString(16));
+      }
+      for (const { hash, veri } of binOgeleri) {
+        let mod;
+        try { mod = binmotor.propEntryler(veri); } catch { continue; }
+        if (!mod.tam) continue;
+        const oyunWad = indeks.get(hash.toString(16)) || null;
+        const oyunEntry = new Map();
+        if (oyunWad) {
+          try {
+            const oyunVeri = await oyunEntryOku(gamePath, oyunWad, hash);
+            if (oyunVeri && propMu(oyunVeri)) {
+              for (const e of binmotor.propEntryler(oyunVeri).entries) {
+                oyunEntry.set(e.keyHash, oyunVeri.subarray(e.start, e.end));
+              }
+            }
+          } catch {}
+        }
+        const sahip = [];
+        for (const e of mod.entries) {
+          const oyundaki = oyunEntry.get(e.keyHash);
+          if (!oyundaki || !oyundaki.equals(veri.subarray(e.start, e.end))) {
+            sahip.push({ keyHash: e.keyHash, typeHash: e.typeHash });
+          }
+        }
+        if (sahip.length) binler.push({ oyunWad, hash: hash.toString(16), sahip, gonderilen, referans: [] });
+      }
+    }
+    return { yama: secenek.yama || null, binler };
+  } finally {
+    await zip.close().catch(() => {});
+  }
+}
+
+module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu, tarifCikar, hashWadIndeksi };
