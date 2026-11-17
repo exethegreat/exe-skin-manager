@@ -97,6 +97,8 @@ async function loadState() {
   const kalan = [];
   for (const s of state.custom) if (await exists(s.file)) kalan.push(s);
   state.custom = kalan;
+  // 1.0.1 öncesi eklenen modların sürümü kayıtta yok: dosyadan bir kez okunur (aynı adlı modları ayırt etmek için)
+  for (const s of state.custom) if (typeof s.version !== "string") s.version = (await readSkinInfo(s.file)).version;
   for (const [key, v] of Object.entries(state.selected)) {
     const m = secimCoz(v);
     if (!m || !catalog.bul(key, m.num, m.vid)) delete state.selected[key];
@@ -164,10 +166,11 @@ async function view() {
     selected: Object.fromEntries(Object.entries(state.selected).map(([k, v]) => [k, secimCoz(v)]).filter(([, m]) => m)),
     indirilen: [...catalog.indirilen],
     suren: [...catalog.suren.keys()],
-    custom: state.custom.map(({ id, name, author, selected, synced }) => ({
+    custom: state.custom.map(({ id, name, author, version, selected, synced }) => ({
       id,
       name,
       author,
+      version: version || "",
       selected,
       senkronGerek: !!senkronGerek.get(id),
       senkronlu: !!synced,
@@ -306,6 +309,15 @@ function saglikYenile() {
   return saglikIs;
 }
 
+// Uygula sonrası: Manager kararı hemen değil birkaç saniye (denetim süre sınırına takılırsa daha da) sonra yazılır.
+// Hemen + 5 / 15 / 45 / 120 sn sonra yeniden okunur; yeni Uygula eski zamanlayıcıları iptal eder.
+let saglikZamanlayicilari = [];
+function saglikYenileGecikmeli() {
+  for (const t of saglikZamanlayicilari) clearTimeout(t);
+  saglikYenile();
+  saglikZamanlayicilari = [5, 15, 45, 120].map((sn) => setTimeout(saglikYenile, sn * 1000));
+}
+
 function saglikDurumu(id) {
   const s = saglik.get(id);
   let durum = s ? s.durum : null;
@@ -381,7 +393,7 @@ async function addSkinFile(src) {
   } else return false;
   const info = await readSkinInfo(file);
   const ad = info.name.replace(new RegExp(`^${id}_`), "").replace(SKIN_RE, "") || temiz;
-  const kayit = { id, file, name: ad, author: info.author === "Unknown" ? "" : info.author, selected: true };
+  const kayit = { id, file, name: ad, author: info.author === "Unknown" ? "" : info.author, version: info.version, selected: true };
   state.custom.push(kayit);
   await tarifKaydet(kayit); // mod şu an (ekleme anında) çalışıyor varsayılır: yazar niyeti = mod − güncel oyun
   senkronGerek.set(id, false);
@@ -449,6 +461,7 @@ function motorDurumu(line) {
 engine.on("status", (line) => {
   const d = motorDurumu(line);
   if (d) setStatus(...d);
+  if (d && d[0] === "ready") saglikYenile(); // motor hazır: sağlık kararları yazılmış olmalı
 });
 engine.on("warning", (m) => console.warn("[motor uyarı]", m));
 // Motorun başlangıçta verdiği, zararsız olduğu bilinen geçici hatalar (bkz. engine.js stop yutma listesi)
@@ -778,7 +791,7 @@ async function uygulaIs() {
     if (!zamanAsimiMi(e)) setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
     throw e;
   } finally {
-    saglikYenile(); // Manager yeni sağlık kararlarını başlatırken yazar
+    saglikYenileGecikmeli(); // Manager kararı Uygula döndükten saniyeler sonra yazabilir
   }
 }
 

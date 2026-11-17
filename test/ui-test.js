@@ -7,6 +7,13 @@ const path = require("node:path");
 const cikti = path.join(__dirname, "..", ".veri-test");
 const veri = path.join(cikti, "ui");
 app.setPath("userData", veri);
+// Önceki çalıştırmanın bıraktığı seçim temizlenir: yoksa test aynı skine tıklayınca seçimi kaldırıp düşer.
+try {
+  const durumDosya = path.join(veri, "durum.json");
+  const d = JSON.parse(fs.readFileSync(durumDosya, "utf8"));
+  d.selected = {};
+  fs.writeFileSync(durumDosya, JSON.stringify(d, null, 1));
+} catch {}
 if (!process.env.INTRO_TEST) process.env.SKIN_INTRO_YOK = "1";
 require("../src/main.js");
 

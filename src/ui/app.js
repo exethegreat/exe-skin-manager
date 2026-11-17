@@ -126,6 +126,13 @@ function cizSol() {
   sol.scrollTop = kaydirma;
 }
 
+// Kendi modunun alt satırı: "yazar · v1.6.9" (aynı adlı iki mod sürümüyle ayırt edilir).
+function modAlt(s, onEk) {
+  const v = String(s.version || "").trim();
+  const surum = v ? (/^v/i.test(v) ? v : "v" + v) : "";
+  return [onEk, surum].filter(Boolean).join(" · ");
+}
+
 // Mod sağlık rozeti: yeşil Güncel / sarı FIX / kırmızı Tamir edilemez (ipucunda açıklama). Manager henüz denetlemediyse rozet yok.
 function saglikEtiketi(s) {
   const d = s.saglik;
@@ -495,7 +502,7 @@ function cizSag() {
       );
     }
     for (const s of g.custom.filter((x) => x.selected)) {
-      liste.append(skinSatiri({ ad: s.name, alt: T("kendiDosyam"), secili: true, etiket: saglikEtiketi(s), tikla: () => cagir(window.api.isaretle(s.id, false)) }));
+      liste.append(skinSatiri({ ad: s.name, alt: modAlt(s, T("kendiDosyam")), secili: true, etiket: saglikEtiketi(s), tikla: () => cagir(window.api.isaretle(s.id, false)) }));
     }
     return;
   }
@@ -525,7 +532,7 @@ function cizSag() {
       liste.append(
         skinSatiri({
           ad: s.name,
-          alt: s.author || "",
+          alt: modAlt(s, s.author || ""),
           secili: s.selected,
           etiket: saglikEtiketi(s),
           tikla: () => cagir(window.api.isaretle(s.id, !s.selected)),

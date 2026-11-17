@@ -64,7 +64,7 @@ async function hazirla() {
   // Sağlık rozeti için iki mod daha: Manager kararı "sağlıklı" (yeşil) ve "ölümcül hata" (kırmızı)
   const ekMod = (mid, ad) => {
     const f = path.join(veri, "skinler", `${mid}_${ad}.fantome`);
-    fs.writeFileSync(f, buildStoreZip([{ name: "META/info.json", data: Buffer.from(JSON.stringify({ Name: ad })) }, { name: "WAD/x.wad.client/a.txt", data: Buffer.from(ad) }]));
+    fs.writeFileSync(f, buildStoreZip([{ name: "META/info.json", data: Buffer.from(JSON.stringify({ Name: ad, Version: "1.6.9" })) }, { name: "WAD/x.wad.client/a.txt", data: Buffer.from(ad) }]));
     return { id: mid, file: f, name: ad, author: "", selected: false, tarifVar: true };
   };
   const lib = path.join(veri, "official-ltk-bridge", "libraries", "persistent");
@@ -167,6 +167,10 @@ app.whenReady().then(async () => {
     kontrol("dosyası silindi", !fs.existsSync(path.join(veri, "skinler", `${"2".repeat(16)}_Kirmizi Test.fantome`)));
     // Onay verilmezse kaldırılmaz: kırmızı rozetli yeni durum yok, Yeşil rozet tıklanamaz olmalı
     kontrol("Güncel rozeti tıklanamaz", !/tiklanir/.test(await satirEtiket("Yesil Test")));
+    // Kayıtta sürümü olmayan (1.0.1 öncesi) mod: sürüm dosyadan okunup alt satırda görünür
+    const altYazi = await js(`[...document.querySelectorAll("#liste .satir")].find(x => x.querySelector(".ad b").textContent === "Yesil Test").querySelector(".ad small")?.textContent || ""`);
+    kontrol("alt satırda sürüm", /v1\.6\.9/.test(altYazi), JSON.stringify(altYazi));
+    kontrol("durum.json'a sürüm yazıldı", (JSON.parse(fs.readFileSync(path.join(veri, "durum.json"), "utf8")).custom.find((c) => c.name === "Yesil Test") || {}).version === "1.6.9");
   } catch (e) {
     log("HATA:", e.message);
     kod = 1;

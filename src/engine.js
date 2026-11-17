@@ -105,9 +105,9 @@ function managerMetadata(source, original) {
   return changed ? Buffer.from(JSON.stringify(info)) : original;
 }
 
-// Bir skin dosyasının adını/yazarını okur (liste için).
+// Bir skin dosyasının adını/yazarını/sürümünü okur (liste için; aynı adlı modlar sürümle ayırt edilir).
 async function readSkinInfo(file) {
-  const fallback = { name: path.basename(file).replace(/\.(fantome|zip|wad(\.client)?)$/i, ""), author: "" };
+  const fallback = { name: path.basename(file).replace(/\.(fantome|zip|wad(\.client)?)$/i, ""), author: "", version: "" };
   if (!/\.(fantome|zip)$/i.test(file)) return fallback;
   const zip = new StreamZip.async({ file });
   try {
@@ -117,7 +117,8 @@ async function readSkinInfo(file) {
     const info = JSON.parse((await zip.entryData(entry)).toString("utf8").replace(/^﻿/, ""));
     return {
       name: typeof info.Name === "string" && info.Name.trim() ? info.Name.trim() : fallback.name,
-      author: typeof info.Author === "string" ? info.Author : ""
+      author: typeof info.Author === "string" ? info.Author : "",
+      version: typeof info.Version === "string" ? info.Version.trim().slice(0, 24) : ""
     };
   } catch {
     return fallback;

@@ -112,3 +112,24 @@ const ok = fs.mkdtempSync(path.join(os.tmpdir(), "skin-onar-"));
     fs.rmSync(ok, { recursive: true, force: true });
   }
 })();
+
+// ---------------- Mod sürümü (aynı adlı modları ayırt etmek için) ----------------
+const { readSkinInfo } = require("../src/engine");
+const sk = fs.mkdtempSync(path.join(os.tmpdir(), "skin-surum-"));
+(async () => {
+  try {
+    const f = path.join(sk, "a.fantome");
+    fs.writeFileSync(f, buildStoreZip([{ name: "META/info.json", data: Buffer.from('{"Name":"Old Tiamat","Author":"Yazar","Version":" 1.6.9 "}') }]));
+    assert.deepStrictEqual(await readSkinInfo(f), { name: "Old Tiamat", author: "Yazar", version: "1.6.9" });
+    const g = path.join(sk, "b.fantome");
+    fs.writeFileSync(g, buildStoreZip([{ name: "META/info.json", data: Buffer.from('{"Name":"X","Version":5}') }]));
+    assert.strictEqual((await readSkinInfo(g)).version, "", "metin olmayan sürüm yok sayılır");
+    assert.strictEqual((await readSkinInfo(path.join(sk, "c.wad.client"))).version, "", "wad dosyasında sürüm yok");
+    console.log("mod sürümü: TÜM testler GEÇTİ");
+  } catch (e) {
+    console.error(e);
+    process.exitCode = 1;
+  } finally {
+    fs.rmSync(sk, { recursive: true, force: true });
+  }
+})();
