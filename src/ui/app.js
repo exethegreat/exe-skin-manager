@@ -126,7 +126,43 @@ function cizSol() {
   sol.scrollTop = kaydirma;
 }
 
-function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar }) {
+// Mod Re-sync: son senkronun raporu (kendi dosyalarım sayfasının başında gösterilir, Tamam ile kapanır).
+let senkronRapor = null;
+let senkronSuren = false;
+async function senkronla(s) {
+  if (senkronSuren) return;
+  senkronSuren = true;
+  try {
+    const v = await cagir(window.api.senkronla(s.id));
+    if (v && v.rapor) {
+      senkronRapor = { ad: s.name, rapor: v.rapor };
+      ciz();
+    }
+  } finally {
+    senkronSuren = false;
+  }
+}
+
+function senkronRaporKutusu() {
+  const { ad, rapor } = senkronRapor;
+  const k = el("div", "senkronRapor");
+  k.setAttribute("role", "status");
+  k.append(el("b", null, T("rapBaslik", { ad })));
+  k.append(el("p", null, T("rapEntry", { n: rapor.senkronEntry })));
+  const kisalt = (a) => (a.length > 8 ? a.slice(0, 8).join(", ") + ", …" : a.join(", "));
+  if (rapor.tipUyumsuz.length) k.append(el("p", "uyari", T("rapTipUyumsuz", { n: rapor.tipUyumsuz.length, liste: kisalt(rapor.tipUyumsuz) })));
+  if (rapor.yokBin.length) k.append(el("p", "uyari", T("rapYokBin", { n: rapor.yokBin.length, liste: kisalt(rapor.yokBin) })));
+  if (rapor.eksikAsset.length) k.append(el("p", "uyari", T("rapEksikAsset", { n: rapor.eksikAsset.length, liste: kisalt(rapor.eksikAsset) })));
+  const b = el("button", "ikincil", T("rapTamam"));
+  b.addEventListener("click", () => {
+    senkronRapor = null;
+    ciz();
+  });
+  k.append(b);
+  return k;
+}
+
+function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senkron }) {
   const s = el("div", "satir" + (secili ? " secili" : ""));
   s.setAttribute("role", yuvarlak ? "radio" : "checkbox");
   s.setAttribute("aria-checked", String(!!secili));
@@ -135,6 +171,15 @@ function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar }) {
   if (alt) metin.append(el("small", null, alt));
   s.append(el("span", "kutu" + (yuvarlak ? " yuvarlak" : ""), "✓"), metin);
   if (etiket) s.append(el("span", "etiket " + etiket[0], etiket[1]));
+  if (senkron) {
+    const b = el("button", "senkronBtn", "⟳ " + senkron[0]);
+    b.title = senkron[0];
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      senkron[1]();
+    });
+    s.append(b);
+  }
   if (cikar) {
     const b = el("button", "sil", "⤓");
     b.title = cikar[0];
@@ -427,13 +472,16 @@ function cizSag() {
       liste.append(b);
       return;
     }
+    if (senkronRapor) liste.append(senkronRaporKutusu());
     for (const s of g.custom) {
       liste.append(
         skinSatiri({
           ad: s.name,
           alt: s.author || "",
           secili: s.selected,
+          etiket: s.senkronGerek ? ["senkronGerek", T("rozetSenkron")] : null,
           tikla: () => cagir(window.api.isaretle(s.id, !s.selected)),
+          senkron: s.senkronGerek ? [T("btnSenkronla"), () => senkronla(s)] : null,
           cikar: [T("cikar"), () => cagir(window.api.cikar(s.id))],
           sil: [T("listedenKaldir"), () => cagir(window.api.sil(s.id))]
         })
