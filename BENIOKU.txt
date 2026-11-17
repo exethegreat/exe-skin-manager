@@ -25,7 +25,7 @@ Bunların hiçbiri uygulamanın kendisiyle gelmez; yoksa önce bunları kur.
 
 2) KURULUM
 ----------
-  1. EXE-Skin-Manager-Setup-1.0.0.exe dosyasına çift tıkla. Yönetici izni gerekmez.
+  1. EXE-Skin-Manager-Setup-1.0.1.exe dosyasına çift tıkla. Yönetici izni gerekmez.
   2. Windows "Bilinmeyen yayıncı / SmartScreen" uyarısı çıkarsa:
        "Ek bilgi"  ->  "Yine de çalıştır"
      (Uygulama imzalı olmadığı için bu uyarı çıkması normaldir.)
@@ -56,6 +56,12 @@ Diğer özellikler:
   - Kendi dosyalarım: elinde hazır skin dosyası (.fantome, .zip, .wad, .modpkg) ya da klasör varsa pencereye sürükle-bırak.
     Eklenenler listede kalır: tikini kaldırırsan yalnızca devre dışı olur, silinmez. Silmek için ✕ düğmesi var.
     ⤓ düğmesi dosyanın içindekileri seçtiğin klasöre çıkarır (WAD/<wad adı>/... düzeniyle).
+  - Mod durumu (kendi dosyalarının yanında, bir kez Uygula'dan sonra görünür; üzerine gelince açıklaması çıkar):
+      Güncel (yeşil)         : mod bu yamada sorunsuz çalışıyor.
+      FIX (sarı)             : mod eskimiş; motor onu onarıyor ya da bazı dosyaları düzeltilmeli. Oyunda kısmen eksik görünebilir.
+      Tamir edilemez (kırmızı): motor bu modu onaramıyor; oyunda bozuk görünebilir ya da tüm modları kapattırabilir. Tikini kaldır.
+  - "⟳ Güncel yamaya senkronla": yeni yama modunu bozduysa bu düğme çıkar. Modun kendi değişikliklerini yeni yamanın
+    dosyalarına taşır ve yeni bir kopya üretir (asıl dosyana dokunulmaz). Sonra Uygula'ya bas.
   - Sol üstteki ☀ / ☾ düğmesi aydınlık ve karanlık tema arasında geçiş yapar.
 
 Dil: 13 dil desteklenir (Türkçe, İngilizce, Almanca, Fransızca, Rusça, Arapça, Lehçe, İspanyolca,
@@ -121,6 +127,9 @@ C) Motor (LTK Manager) güncelleme  <-- sadece gerekirse
   - Bazı skin'ler "depoda bulunamadı" der: skin kaynağında henüz yok demektir, birkaç gün sonra dene.
   - Motor hiç açılmıyor: 1. maddedeki Visual C++ paketini kur.
   - Uygulama açılıp hemen kapanıyorsa: antivirüs engelliyor olabilir, 2. maddenin 4. adımına bak.
+  - "Hazırlık uzun sürdü, yeniden deneniyor": mod listesi değişince motor bütün dosyaları yeniden kurar; çok büyük
+    modlarda (harita/minyon modları) bu 2 dakikayı aşabilir. Uygulama kendiliğinden iki kez daha dener, bir şeye basma.
+    Yine olmazsa biraz bekleyip Uygula'ya tekrar bas.
 
 
 6) KALDIRMA

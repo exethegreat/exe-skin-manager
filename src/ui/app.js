@@ -126,6 +126,16 @@ function cizSol() {
   sol.scrollTop = kaydirma;
 }
 
+// Mod sağlık rozeti: yeşil Güncel / sarı FIX / kırmızı Tamir edilemez (ipucunda açıklama). Manager henüz denetlemediyse rozet yok.
+function saglikEtiketi(s) {
+  const d = s.saglik;
+  if (!d) return null;
+  if (d.durum === "guncel") return ["saglikGuncel", T("rozetGuncel"), T("ipGuncel")];
+  if (d.durum === "fix") return ["saglikFix", T("rozetFix"), d.onarim ? T("ipFix", { n: d.onarim }) : T("ipFixSade")];
+  if (d.durum === "bozuk") return ["saglikBozuk", T("rozetBozuk"), T("ipBozuk")];
+  return null;
+}
+
 // Mod Re-sync: son senkronun raporu (kendi dosyalarım sayfasının başında gösterilir, Tamam ile kapanır).
 let senkronRapor = null;
 let senkronSuren = false;
@@ -170,7 +180,11 @@ function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senk
   metin.append(el("b", null, ad));
   if (alt) metin.append(el("small", null, alt));
   s.append(el("span", "kutu" + (yuvarlak ? " yuvarlak" : ""), "✓"), metin);
-  if (etiket) s.append(el("span", "etiket " + etiket[0], etiket[1]));
+  if (etiket) {
+    const e = el("span", "etiket " + etiket[0], etiket[1]);
+    if (etiket[2]) e.title = etiket[2];
+    s.append(e);
+  }
   if (senkron) {
     const b = el("button", "senkronBtn", "⟳ " + senkron[0]);
     b.title = senkron[0];
@@ -447,7 +461,7 @@ function cizSag() {
       );
     }
     for (const s of g.custom.filter((x) => x.selected)) {
-      liste.append(skinSatiri({ ad: s.name, alt: T("kendiDosyam"), secili: true, tikla: () => cagir(window.api.isaretle(s.id, false)) }));
+      liste.append(skinSatiri({ ad: s.name, alt: T("kendiDosyam"), secili: true, etiket: saglikEtiketi(s), tikla: () => cagir(window.api.isaretle(s.id, false)) }));
     }
     return;
   }
@@ -479,7 +493,7 @@ function cizSag() {
           ad: s.name,
           alt: s.author || "",
           secili: s.selected,
-          etiket: s.senkronGerek ? ["senkronGerek", T("rozetSenkron")] : null,
+          etiket: saglikEtiketi(s),
           tikla: () => cagir(window.api.isaretle(s.id, !s.selected)),
           senkron: s.senkronGerek ? [T("btnSenkronla"), () => senkronla(s)] : null,
           cikar: [T("cikar"), () => cagir(window.api.cikar(s.id))],

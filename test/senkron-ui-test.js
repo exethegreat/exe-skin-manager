@@ -61,9 +61,26 @@ async function hazirla() {
   const tarif = await tarifCikar(modFile, gamePath, { yama: "26.21" });
   fs.mkdirSync(path.join(veri, "tarifler"), { recursive: true });
   fs.writeFileSync(path.join(veri, "tarifler", `${id}.json`), JSON.stringify({ tarif, senkron: null }));
+  // Sağlık rozeti için iki mod daha: Manager kararı "sağlıklı" (yeşil) ve "ölümcül hata" (kırmızı)
+  const ekMod = (mid, ad) => {
+    const f = path.join(veri, "skinler", `${mid}_${ad}.fantome`);
+    fs.writeFileSync(f, buildStoreZip([{ name: "META/info.json", data: Buffer.from(JSON.stringify({ Name: ad })) }, { name: "WAD/x.wad.client/a.txt", data: Buffer.from(ad) }]));
+    return { id: mid, file: f, name: ad, author: "", selected: false, tarifVar: true };
+  };
+  const lib = path.join(veri, "official-ltk-bridge", "libraries", "persistent");
+  fs.mkdirSync(lib, { recursive: true });
+  fs.writeFileSync(path.join(lib, "bocchi-sync.json"), JSON.stringify({ mods: { ["1".repeat(64)]: { id: "m-yesil" }, ["2".repeat(64)]: { id: "m-kirmizi" } } }));
+  fs.writeFileSync(path.join(lib, "mod-health-verdicts.json"), JSON.stringify({ verdicts: {
+    "m-yesil": { health: "healthy", counts: { fatals: 0, errors: 0, warnings: 0 }, rules: [] },
+    "m-kirmizi": { health: "unrepairable", counts: { fatals: 3, errors: 0, warnings: 0 }, rules: [{ rule: "bin/property-type" }] }
+  } }));
   fs.writeFileSync(path.join(veri, "durum.json"), JSON.stringify({
     gamePath, selected: {}, yama: "26.22",
-    custom: [{ id, file: modFile, name: "Senkron Test", author: "x", selected: true, tarifVar: true, yama: "26.21" }]
+    custom: [
+      { id, file: modFile, name: "Senkron Test", author: "x", selected: true, tarifVar: true, yama: "26.21" },
+      ekMod("1".repeat(16), "Yesil Test"),
+      ekMod("2".repeat(16), "Kirmizi Test")
+    ]
   }));
   oyunuYaz([[1, 11, 1], [2, 12, 22], [4, 14, 4]]); // yeni yama
   require("../src/main.js");
@@ -83,9 +100,14 @@ app.whenReady().then(async () => {
     await bekle(1500);
     await js(`[...document.querySelectorAll("#sol .oge")][1].click()`); // Kendi dosyalarım
     let rozet = false;
-    for (let i = 0; i < 60 && !(rozet = await js(`!!document.querySelector("#liste .etiket.senkronGerek")`)); i++) await bekle(250);
-    kontrol("rozet görünüyor", rozet, await js(`document.querySelector("#liste .etiket.senkronGerek")?.textContent || ""`));
+    for (let i = 0; i < 60 && !(rozet = await js(`!!document.querySelector("#liste .etiket.saglikFix")`)); i++) await bekle(250);
+    kontrol("rozet görünüyor", rozet, await js(`document.querySelector("#liste .etiket.saglikFix")?.textContent || ""`));
     kontrol("senkron düğmesi var", await js(`!!document.querySelector("#liste .senkronBtn")`));
+    const rozetler = await js(`[...document.querySelectorAll("#liste .satir")].map(r => [r.querySelector(".ad b").textContent, (r.querySelector(".etiket") || {}).className || "", (r.querySelector(".etiket") || {}).textContent || "", (r.querySelector(".etiket") || {}).title || ""])`);
+    const bul = (ad) => rozetler.find((r) => r[0] === ad) || [];
+    kontrol("yeşil Güncel rozeti", /saglikGuncel/.test(bul("Yesil Test")[1]) && bul("Yesil Test")[2] === "Güncel" && !!bul("Yesil Test")[3], JSON.stringify(bul("Yesil Test")));
+    kontrol("kırmızı Tamir edilemez rozeti", /saglikBozuk/.test(bul("Kirmizi Test")[1]) && bul("Kirmizi Test")[2] === "Tamir edilemez", JSON.stringify(bul("Kirmizi Test")));
+    kontrol("sarı FIX (senkron gerekli)", /saglikFix/.test(bul("Senkron Test")[1]) && bul("Senkron Test")[2] === "FIX", JSON.stringify(bul("Senkron Test")));
     const png1 = (await win.webContents.capturePage()).toPNG();
     fs.writeFileSync(path.join(cikti, "senkron-1-rozet.png"), png1);
 
@@ -93,7 +115,7 @@ app.whenReady().then(async () => {
     let rapor = "";
     for (let i = 0; i < 80 && !(rapor = await js(`document.querySelector("#liste .senkronRapor")?.innerText || ""`)); i++) await bekle(250);
     kontrol("rapor kutusu", /2 değişiklik/.test(rapor), JSON.stringify(rapor));
-    kontrol("rozet kalktı", !(await js(`!!document.querySelector("#liste .etiket.senkronGerek")`)));
+    kontrol("rozet kalktı", !(await js(`!!document.querySelector("#liste .etiket.saglikFix")`)));
     kontrol("türev dosya oluştu", fs.existsSync(path.join(veri, "tarifler", "abcdef0123456789.synced.fantome")));
     const durum = JSON.parse(fs.readFileSync(path.join(veri, "durum.json"), "utf8"));
     kontrol("durum.json synced alanı", /synced\.fantome$/.test(durum.custom[0].synced || ""));

@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const StreamZip = require("node-stream-zip");
-const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu, tarifCikar, senkronDenetim, reSync } = require("./engine");
+const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu, tarifCikar, senkronDenetim, reSync, modSagliklari, fileHash } = require("./engine");
 const G = require("./guncelleme");
 const modpkg = require("./modpkg");
 const { Catalog } = require("./catalog");
@@ -170,7 +170,8 @@ async function view() {
       author,
       selected,
       senkronGerek: !!senkronGerek.get(id),
-      senkronlu: !!synced
+      senkronlu: !!synced,
+      saglik: saglikDurumu(id)
     })),
     status: { kind: status.kind, text: metin(status.desc) },
     patch: catalog.data.patch,
@@ -283,6 +284,33 @@ function senkronDenetle() {
       senkronIs = null;
     });
   return senkronIs;
+}
+
+// ---------------- Mod sağlık rozeti ----------------
+// Manager'ın denetim kararları (yeşil Güncel / sarı FIX / kırmızı Tamir edilemez). Senkron gerekiyorsa en az FIX.
+const saglik = new Map(); // id -> {durum, onarim}
+let saglikIs = null;
+function saglikYenile() {
+  if (saglikIs) return saglikIs;
+  saglikIs = modSagliklari(engine.library, state.custom.map((s) => ({ anahtar: s.id, hash: s.synced && s.syncedHash ? s.syncedHash : s.id })))
+    .then((m) => {
+      const once = JSON.stringify([...saglik]);
+      saglik.clear();
+      for (const [k, v] of m) saglik.set(k, v);
+      if (JSON.stringify([...saglik]) !== once) yayinla();
+    })
+    .catch((e) => console.warn("sağlık okunamadı:", e.message))
+    .finally(() => {
+      saglikIs = null;
+    });
+  return saglikIs;
+}
+
+function saglikDurumu(id) {
+  const s = saglik.get(id);
+  let durum = s ? s.durum : null;
+  if (senkronGerek.get(id) && durum !== "bozuk") durum = "fix";
+  return durum ? { durum, onarim: s ? s.onarim : 0 } : null;
 }
 
 // Uygula'da kullanılacak dosya: senkron türevi varsa o, yoksa orijinal.
@@ -440,9 +468,32 @@ engine.on("idle", (m) => {
   if (kotuAdlar && m) setStatus("error", { k: "sSkinhack", v: { ad: kotuAdlar } });
   else setStatus("idle", m ? { k: "sDurdu", v: { m } } : { k: "sDurduruldu" });
 });
+// Otomatik yeniden deneme: motor köprüsünün Manager'ı ~2 dk bekleme sınırı (değiştirilemez) büyük overlay kurulumunda
+// dolabiliyor; Manager çoğu zaman kurulumu yine de bitiriyor, ikinci Uygula hazır overlay'i saniyeler içinde kullanır.
+const YENIDEN_EN_COK = 2;
+let yenidenDeneme = 0;
+let sonUygulama = 0;
+const zamanAsimiMi = (e) => /timed out|deadline has elapsed/i.test(typeof e === "string" ? e : (e && e.message) || String(e || ""));
+
 engine.on("closed", (err) => {
-  if (err) setStatus("error", { k: "sMotorKapandi", v: { m: err } });
-  else yayinla();
+  if (!err) return yayinla();
+  const metinHata = typeof err === "string" ? err : "";
+  if (zamanAsimiMi(metinHata) && Date.now() - sonUygulama < 15 * 60 * 1000) {
+    if (yenidenDeneme < YENIDEN_EN_COK) {
+      yenidenDeneme++;
+      console.warn("[motor] zaman aşımı, yeniden deneniyor:", yenidenDeneme, metinHata);
+      setStatus("working", { k: "sYenidenDeneniyor", v: { n: yenidenDeneme, en: YENIDEN_EN_COK } });
+      // apply'ın kendi hata yolu (busy bayrağı) bitsin diye kısa gecikme
+      setTimeout(() => {
+        uygulaIs().catch((e) => {
+          if (!zamanAsimiMi(e)) setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
+        });
+      }, 2000);
+      return;
+    }
+    return setStatus("error", { k: "sMotorZamanAsimi" });
+  }
+  setStatus("error", { k: "sMotorKapandi", v: { m: err } });
 });
 
 // Katalog arka planda yenilenince arayüze haber ver.
@@ -587,6 +638,7 @@ const handlers = {
       kayit.senkron = { yama: state.yama || "", ozetler, tarih: Date.now() };
       await tarifYaz(id, kayit);
       s.synced = senkronYolu(id);
+      s.syncedHash = await fileHash(s.synced); // sağlık rozeti türevin Manager kararına bakar
       if (s.selected) secimDegisti();
       await saveState();
       senkronGerek.set(id, await gerekMi(s));
@@ -633,47 +685,60 @@ const handlers = {
     return view();
   },
   "motor:uygula": async () => {
-    const katalogSecim = Object.entries(state.selected);
-    const kendi = state.custom.filter((s) => s.selected);
-    if (!katalogSecim.length && !kendi.length) throw new Hata("eSkinSec");
-    if (!(await gameOk(state.gamePath))) throw new Hata("eOyunKlasoruYok");
-    if (await isRunning("Bocchi.exe")) throw new Hata("eDigerProgram");
+    yenidenDeneme = 0; // kullanıcı kendisi bastı: otomatik deneme sayacı sıfırlanır
     try {
-      const dosyalar = [];
-      let i = 0;
-      for (const [key, v] of katalogSecim) {
-        const m = secimCoz(v);
-        i++;
-        if (!catalog.guncel(key, m.num, m.vid)) setStatus("working", { k: "sIndiriliyor", v: { i, n: katalogSecim.length } });
-        dosyalar.push(await catalog.indir(key, m.num, m.vid));
-      }
-      dosyalar.push(...kendi.map(uygulanacak));
-      setStatus("working", { k: "sHazirlaniyor" });
-      dirty = false;
-      kotuAdlar = "";
-      const kotu = await engine.apply(dosyalar, state.gamePath);
-      if (kotu && kotu.length) {
-        kotuAdlar = kotu
-          .map((k) => {
-            const c = state.custom.find((s) => s.file === k.source || s.synced === k.source);
-            return c ? c.name : path.basename(k.source).replace(/\.fantome$/i, "");
-          })
-          .join(", ");
-        setStatus("error", { k: "sSkinhack", v: { ad: kotuAdlar } });
-      }
+      await uygulaIs();
     } catch (e) {
-      setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
-      throw e;
+      if (!zamanAsimiMi(e)) throw e; // zaman aşımında motor kapanış olayı otomatik yeniden denemeyi başlatır
     }
     return view();
   },
   "motor:durdur": async () => {
+    yenidenDeneme = YENIDEN_EN_COK; // kullanıcı durdurdu: kapanış otomatik denemeyi tetiklemesin
     await engine.stop();
     dirty = false;
     setStatus("idle", { k: "sDurduruldu" });
     return view();
   }
 };
+
+async function uygulaIs() {
+  const katalogSecim = Object.entries(state.selected);
+  const kendi = state.custom.filter((s) => s.selected);
+  if (!katalogSecim.length && !kendi.length) throw new Hata("eSkinSec");
+  if (!(await gameOk(state.gamePath))) throw new Hata("eOyunKlasoruYok");
+  if (await isRunning("Bocchi.exe")) throw new Hata("eDigerProgram");
+  sonUygulama = Date.now();
+  try {
+    const dosyalar = [];
+    let i = 0;
+    for (const [key, v] of katalogSecim) {
+      const m = secimCoz(v);
+      i++;
+      if (!catalog.guncel(key, m.num, m.vid)) setStatus("working", { k: "sIndiriliyor", v: { i, n: katalogSecim.length } });
+      dosyalar.push(await catalog.indir(key, m.num, m.vid));
+    }
+    dosyalar.push(...kendi.map(uygulanacak));
+    setStatus("working", { k: "sHazirlaniyor" });
+    dirty = false;
+    kotuAdlar = "";
+    const kotu = await engine.apply(dosyalar, state.gamePath);
+    if (kotu && kotu.length) {
+      kotuAdlar = kotu
+        .map((k) => {
+          const c = state.custom.find((s) => s.file === k.source || s.synced === k.source);
+          return c ? c.name : path.basename(k.source).replace(/\.fantome$/i, "");
+        })
+        .join(", ");
+      setStatus("error", { k: "sSkinhack", v: { ad: kotuAdlar } });
+    }
+  } catch (e) {
+    if (!zamanAsimiMi(e)) setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
+    throw e;
+  } finally {
+    saglikYenile(); // Manager yeni sağlık kararlarını başlatırken yazar
+  }
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -773,6 +838,7 @@ if (!app.requestSingleInstanceLock()) {
     win.show();
     guncellemeDenetle(false).catch(() => {});
     senkronDenetle(); // yama sonrası bozulan modlar için rozet
+    saglikYenile();
     setInterval(() => { if (!running()) senkronDenetle(); }, 10 * 60 * 1000);
   });
 
@@ -781,6 +847,7 @@ if (!app.requestSingleInstanceLock()) {
     if (kapaniyor) return;
     e.preventDefault();
     kapaniyor = true;
+    yenidenDeneme = YENIDEN_EN_COK; // kapanırken motor kapanışı otomatik yeniden denemeyi tetiklemesin
     engine
       .shutdown()
       .catch(() => {})

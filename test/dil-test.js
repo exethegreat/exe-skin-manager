@@ -28,7 +28,7 @@ app.whenReady().then(async () => {
       kontrol(`tablo ${satir[0]}: ${DILLER.length} dil`, satir.length === DILLER.length + 1 && satir.slice(1).every((x) => typeof x === "string" && x.trim()), String(satir.length - 1));
       kontrol(`tablo ${satir[0]}: tutucular`, satir.slice(2).every((x) => tutucular(x) === tutucular(satir[1])));
     }
-    for (const k of ["rozetSenkron", "btnSenkronla", "rapBaslik", "rapEntry", "rapEksikAsset", "rapTipUyumsuz", "rapYokBin", "rapTamam", "sSenkronlaniyor", "sSenkronlandi", "eTarifYok"]) {
+    for (const k of ["rozetGuncel", "rozetFix", "rozetBozuk", "ipGuncel", "ipFix", "ipFixSade", "ipBozuk", "sYenidenDeneniyor", "sMotorZamanAsimi", "btnSenkronla", "rapBaslik", "rapEntry", "rapEksikAsset", "rapTipUyumsuz", "rapYokBin", "rapTamam", "sSenkronlaniyor", "sSenkronlandi", "eTarifYok"]) {
       kontrol(`yeni anahtar ${k}`, k in TABLO.tr);
     }
 

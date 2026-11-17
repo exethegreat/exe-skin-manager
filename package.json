@@ -1,6 +1,6 @@
 {
   "name": "skin-yonetici",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "EXE Skin Manager - sade League of Legends skin yöneticisi",
   "main": "src/main.js",
   "private": true,

@@ -142,6 +142,75 @@ function kotuPaketler(metin) {
   return [];
 }
 
+// ---------------- Mod sağlık rozeti ----------------
+// Manager'ın denetim kararından arayüz sınıfı: "guncel" (yeşil), "fix" (sarı: onarıldı/uyarı var/güncellenmeli),
+// "bozuk" (kırmızı: ölümcül hata ya da skinhack — onarılamaz, Manager'ı zorlar ya da tüm modları kapattırır). Karar yoksa null.
+function saglikSinifi(karar, onarim) {
+  if (!karar) return null;
+  const c = karar.counts || {};
+  const kurallar = (karar.rules || []).map((r) => String(r.rule || ""));
+  if ((c.fatals || 0) > 0 || kurallar.some((r) => /skinhack/i.test(r))) return "bozuk";
+  if ((c.errors || 0) > 0 || (c.warnings || 0) > 0 || (onarim || 0) > 0 || karar.health !== "healthy") return "fix";
+  return "guncel";
+}
+
+async function jsonOku(file) {
+  try {
+    return JSON.parse((await fsp.readFile(file, "utf8")).replace(/^﻿/, ""));
+  } catch {
+    return null;
+  }
+}
+
+// mods: [{anahtar, hash}] (hash = kaynak dosyanın sha256'sı ya da öneki). Dönüş: Map(anahtar -> {durum, onarim}).
+// Eşleme: kaynak hash → (seçimdeki hazırlanmış kopya | sync kaydı | library.json) → Manager mod id → sağlık kararı.
+async function modSagliklari(library, mods) {
+  const sonuc = new Map();
+  const [sync, secim, kutup, kararlar] = await Promise.all([
+    jsonOku(path.join(library, "bocchi-sync.json")),
+    jsonOku(path.join(library, "bocchi-selection.json")),
+    jsonOku(path.join(library, "library.json")),
+    jsonOku(path.join(library, "mod-health-verdicts.json"))
+  ]);
+  if (!kararlar || !kararlar.verdicts) return sonuc;
+  const syncMods = (sync && sync.mods) || {};
+  const paketler = (secim && secim.packages) || [];
+  const kutupMods = (kutup && kutup.mods) || [];
+  const onarim = new Map();
+  try {
+    const metin = await fsp.readFile(path.join(library, "bocchi-bridge-events.jsonl"), "utf8");
+    for (const satir of metin.split("\n")) {
+      if (!satir.includes('"mod-repaired"')) continue;
+      try {
+        const o = JSON.parse(satir);
+        if (o.facts && o.facts.modId) onarim.set(o.facts.modId, Number(o.facts.repaired) || 0);
+      } catch {}
+    }
+  } catch {}
+  for (const { anahtar, hash } of mods) {
+    if (!hash) continue;
+    const h = String(hash).toLowerCase();
+    const ozetler = new Set([h]);
+    for (const p of paketler) if (String(p.sourceId || "").startsWith(h) && p.sha256) ozetler.add(p.sha256);
+    let modId = null;
+    for (const [d, m] of Object.entries(syncMods)) {
+      if ([...ozetler].some((o) => d.startsWith(o)) && m && m.id) {
+        modId = m.id;
+        break;
+      }
+    }
+    if (!modId) {
+      const k = kutupMods.find((m) => [...ozetler].some((o) => String(m.sourceSha256 || "").startsWith(o)));
+      if (k) modId = k.id;
+    }
+    if (!modId) continue;
+    const n = onarim.get(modId) || 0;
+    const durum = saglikSinifi(kararlar.verdicts[modId], n);
+    if (durum) sonuc.set(anahtar, { durum, onarim: n });
+  }
+  return sonuc;
+}
+
 // ltk-manager.exe'nin sürümünü dosya özelliklerinden okur ("v1.33.0" biçiminde).
 function dosyaSurumu(exe) {
   return new Promise((resolve) => {
@@ -750,4 +819,4 @@ async function binSenkronla(gamePath, indeks, tb, modBin, rapor, ozetler) {
   return r.bin;
 }
 
-module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu, tarifCikar, hashWadIndeksi, senkronDenetim, reSync };
+module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu, saglikSinifi, modSagliklari, fileHash, tarifCikar, hashWadIndeksi, senkronDenetim, reSync };
