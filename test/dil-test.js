@@ -21,6 +21,17 @@ app.whenReady().then(async () => {
     } else if (process.env.AYRINTI) log("OK   ", ad, ek);
   };
   try {
+    // Tablo bütünlüğü: her satır 13 dilde dolu, {yer} tutucuları tüm dillerde aynı
+    const { SATIRLAR } = require("../src/ui/diller");
+    const tutucular = (s) => (String(s).match(/\{\w+\}/g) || []).sort().join(",");
+    for (const satir of SATIRLAR) {
+      kontrol(`tablo ${satir[0]}: ${DILLER.length} dil`, satir.length === DILLER.length + 1 && satir.slice(1).every((x) => typeof x === "string" && x.trim()), String(satir.length - 1));
+      kontrol(`tablo ${satir[0]}: tutucular`, satir.slice(2).every((x) => tutucular(x) === tutucular(satir[1])));
+    }
+    for (const k of ["rozetSenkron", "btnSenkronla", "rapBaslik", "rapEntry", "rapEksikAsset", "rapTipUyumsuz", "rapYokBin", "rapTamam", "sSenkronlaniyor", "sSenkronlandi", "eTarifYok"]) {
+      kontrol(`yeni anahtar ${k}`, k in TABLO.tr);
+    }
+
     let win;
     for (let i = 0; i < 600 && !(win = BrowserWindow.getAllWindows()[0]); i++) await bekle(100);
     win.show();

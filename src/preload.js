@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("api", {
   cikar: (id) => cagir("skin:cikar", id),
   isaretle: (id, on) => cagir("skin:isaretle", id, on),
   sil: (id) => cagir("skin:sil", id),
+  senkronla: (id) => cagir("mod:senkronla", id),
   oyunSec: () => cagir("oyun:sec"),
   oyunYaz: (yol) => cagir("oyun:yaz", yol),
   oyunBul: () => cagir("oyun:bul"),
