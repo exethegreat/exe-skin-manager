@@ -24,6 +24,19 @@ assert.strictEqual(
 );
 console.log("hash testleri GEÇTİ");
 
+// --- WAD round-trip (her zaman, oyun gerektirmez) ---
+{
+  const data = Buffer.from("merhaba-binmotor-123", "utf8");
+  const hash = b.yolHash("data/test/ornek.bin");
+  const wadBuf = b.wadYaz([{ hash, data }]);
+  const w2 = b.wadOku(wadBuf);
+  assert.strictEqual(w2.surum[0], 3, "üretilen WAD v3 olmalı");
+  assert.strictEqual(w2.entries.length, 1, "1 entry olmalı");
+  assert.strictEqual(w2.entries[0].hash, hash, "hash korunmalı");
+  assert.ok(b.wadEntryVeri(wadBuf, w2.entries[0]).equals(data), "veri round-trip eşit olmalı");
+  console.log("WAD round-trip GEÇTİ");
+}
+
 // --- WAD/PROP testleri (GAME env ile) ---
 const GAME = process.env.GAME;
 if (GAME) {
@@ -46,6 +59,29 @@ if (GAME) {
     prop.entries.some((en) => (en.keyHash >>> 0) === k),
     "SRX_Buf_Red entry bulunmalı"
   );
+
+  // propBirlestir — replace (kendiyle splice): entry sayısı değişmez, tam true
+  const r1 = b.propBirlestir(bin, bin, [k]);
+  const p1 = b.propEntryler(r1.bin);
+  assert.strictEqual(p1.tam, true, "splice sonucu PROP tam olmalı");
+  assert.strictEqual(p1.entries.length, prop.entries.length, "replace entry sayısını değiştirmemeli");
+  assert.ok(r1.degisen.includes(k), "degisen SRX_Buf_Red içermeli");
+
+  // propBirlestir — ekle: items bin'inden shared'da olmayan bir entry
+  const itemsE = wad.entries.find((x) => x.hash === 0x1d720f4f42640c18n);
+  assert.ok(itemsE, "items bin bulunmalı");
+  const itemsBin = b.wadEntryVeri(buf, itemsE);
+  const addK = b.fnv1a32("Items/3077") >>> 0;
+  assert.ok(b.propEntryler(itemsBin).entries.some((e) => (e.keyHash >>> 0) === addK), "items bin Items/3077 içermeli");
+  assert.ok(!prop.entries.some((e) => (e.keyHash >>> 0) === addK), "shared bin Items/3077 İÇERMEMELİ");
+  const r2 = b.propBirlestir(bin, itemsBin, [addK]);
+  const p2 = b.propEntryler(r2.bin);
+  assert.strictEqual(p2.tam, true, "ekleme sonucu PROP tam olmalı");
+  assert.strictEqual(p2.entries.length, prop.entries.length + 1, "ekleme entry sayısını +1 yapmalı");
+  assert.ok(r2.eklenen.includes(addK), "eklenen Items/3077 içermeli");
+  assert.ok(p2.entries.some((e) => (e.keyHash >>> 0) === addK), "eklenen entry sonuçta olmalı");
+
+  console.log("propBirlestir (splice/ekle) GEÇTİ");
   console.log("WAD/PROP testleri GEÇTİ (GAME ayarlı)");
 } else {
   console.log("WAD/PROP testleri ATLANDI (GAME env yok)");

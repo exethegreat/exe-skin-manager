@@ -119,4 +119,91 @@ function propEntryler(bin) {
   return { surum, linked, typeHashes, entries, tam: off === bin.length };
 }
 
-module.exports = { xxh64, yolHash, fnv1a32, wadOku, wadEntryVeri, propEntryler };
+// ---------------- PROP birleştir (splice/ekle) ----------------
+// kaynak'taki verilen keyHash entry'lerini taban'a uygula: varsa replace, yoksa ekle.
+function propBirlestir(taban, kaynak, keyHashler) {
+  const T = propEntryler(taban);
+  const K = propEntryler(kaynak);
+  const kMap = new Map(); // keyHash -> kaynak entry
+  for (const e of K.entries) kMap.set(e.keyHash >>> 0, e);
+  const tHas = new Set(T.entries.map((e) => e.keyHash >>> 0));
+
+  const replaceBytes = new Map(); // keyHash -> Buffer
+  const addList = []; // {keyHash, typeHash, bytes}
+  const degisen = [], eklenen = [], tipUyumsuz = [];
+  const tTypeByKey = new Map(T.entries.map((e) => [e.keyHash >>> 0, e.typeHash >>> 0]));
+
+  for (const khRaw of keyHashler) {
+    const kh = khRaw >>> 0;
+    const ke = kMap.get(kh);
+    if (!ke) continue; // kaynakta yok → uygulanamaz
+    const kbytes = kaynak.subarray(ke.start, ke.end);
+    if (tHas.has(kh)) {
+      if (tTypeByKey.get(kh) !== (ke.typeHash >>> 0)) { tipUyumsuz.push(kh); continue; }
+      replaceBytes.set(kh, kbytes); degisen.push(kh);
+    } else {
+      addList.push({ keyHash: kh, typeHash: ke.typeHash >>> 0, bytes: kbytes }); eklenen.push(kh);
+    }
+  }
+
+  const newCount = T.entries.length + addList.length;
+  const typeArr = [];
+  const entryBufs = [];
+  for (const e of T.entries) {
+    typeArr.push(e.typeHash >>> 0);
+    const rep = replaceBytes.get(e.keyHash >>> 0);
+    entryBufs.push(rep ? Buffer.from(rep) : Buffer.from(taban.subarray(e.start, e.end)));
+  }
+  for (const a of addList) { typeArr.push(a.typeHash >>> 0); entryBufs.push(Buffer.from(a.bytes)); }
+
+  const chunks = [];
+  const head = Buffer.alloc(8);
+  head.write("PROP", 0, "latin1"); head.writeUInt32LE(T.surum, 4);
+  chunks.push(head);
+  if (T.surum >= 2) {
+    const lc = Buffer.alloc(4); lc.writeUInt32LE(T.linked.length, 0); chunks.push(lc);
+    for (const s of T.linked) {
+      const sb = Buffer.from(s, "utf8");
+      const lb = Buffer.alloc(2); lb.writeUInt16LE(sb.length, 0);
+      chunks.push(lb, sb);
+    }
+  }
+  const cb = Buffer.alloc(4); cb.writeUInt32LE(newCount, 0); chunks.push(cb);
+  const tb = Buffer.alloc(4 * newCount);
+  for (let i = 0; i < newCount; i++) tb.writeUInt32LE(typeArr[i] >>> 0, i * 4);
+  chunks.push(tb);
+  for (const eb of entryBufs) chunks.push(eb);
+
+  return { bin: Buffer.concat(chunks), degisen, eklenen, tipUyumsuz };
+}
+
+// ---------------- WAD v3.4 yaz ----------------
+function wadYaz(entries) {
+  const count = entries.length;
+  const comp = entries.map((e) => zlib.zstdCompressSync(e.data));
+  const tocStart = 2 + 1 + 1 + 256 + 8 + 4; // 272
+  const toc = [];
+  const datas = [];
+  let dataOff = tocStart + count * 32;
+  for (let i = 0; i < count; i++) {
+    const c = comp[i];
+    const e32 = Buffer.alloc(32);
+    const h = typeof entries[i].hash === "bigint" ? entries[i].hash : BigInt(entries[i].hash);
+    e32.writeBigUInt64LE(w(h), 0);
+    e32.writeUInt32LE(dataOff, 8);
+    e32.writeUInt32LE(c.length, 12);
+    e32.writeUInt32LE(entries[i].data.length, 16);
+    e32[20] = 0x03; // tip=3 (zstd), subchunkCount=0
+    // 21..31 = 0 (subchunk/checksum); modlu WAD'da denetlenmiyor
+    toc.push(e32);
+    datas.push(c);
+    dataOff += c.length;
+  }
+  const head = Buffer.alloc(tocStart);
+  head.write("RW", 0, "latin1"); head[2] = 3; head[3] = 4;
+  // imza(256) + checksum(8) = sıfır
+  head.writeUInt32LE(count, 268);
+  return Buffer.concat([head, ...toc, ...datas]);
+}
+
+module.exports = { xxh64, yolHash, fnv1a32, wadOku, wadEntryVeri, propEntryler, propBirlestir, wadYaz };
