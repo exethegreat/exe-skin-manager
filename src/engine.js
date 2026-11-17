@@ -80,6 +80,10 @@ function buildStoreZip(entries) {
   return Buffer.concat([...chunks, ...central, eocd]);
 }
 
+// META/info.json üst sınırı. Katmanlı modlarda (Layers → GameData: bin düzenlemeleri) info.json birkaç MB olabilir
+// (ör. OldSR V3 = 7.8 MB); eski 1 MB sınırı bu modları "geçersiz META/info.json" diye reddediyordu.
+const INFO_EN_BUYUK = 32 * 1024 * 1024;
+
 // META/info.json'da LTK Manager'ın istediği alanlar eksikse tamamlar.
 function managerMetadata(source, original) {
   const fail = () => {
@@ -113,7 +117,7 @@ async function readSkinInfo(file) {
   try {
     const entries = Object.values(await zip.entries());
     const entry = entries.find((e) => e.name.replace(/\\/g, "/").toLowerCase() === "meta/info.json");
-    if (!entry || entry.size > 1024 * 1024) return fallback;
+    if (!entry || entry.size > INFO_EN_BUYUK) return fallback;
     const info = JSON.parse((await zip.entryData(entry)).toString("utf8").replace(/^﻿/, ""));
     return {
       name: typeof info.Name === "string" && info.Name.trim() ? info.Name.trim() : fallback.name,
@@ -337,7 +341,7 @@ class Engine extends EventEmitter {
           const infos = entries.filter((e) => e.name.replace(/\\/g, "/").toLowerCase() === "meta/info.json");
           if (infos.length > 1) throw new Hata("mInfoCift", { ad: path.basename(source) });
           const infoEntry = infos[0];
-          if (infoEntry && (infoEntry.isDirectory || infoEntry.size > 1024 * 1024)) {
+          if (infoEntry && (infoEntry.isDirectory || infoEntry.size > INFO_EN_BUYUK)) {
             throw new Hata("mInfo", { ad: path.basename(source) });
           }
           const original = infoEntry ? await zip.entryData(infoEntry) : undefined;

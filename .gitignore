@@ -12,3 +12,6 @@ dist/
 # Üçüncü taraf ikili dosyalar (Setup içinde gelir); yalnızca lisans bildirimi depoda tutulur
 motor/*
 !motor/UCUNCU-TARAF-LISANSLARI.txt
+
+# Sohbet geçmişi (yerel; kişisel konuşmalar depoya girmez)
+sohbet-gecmisi.md
