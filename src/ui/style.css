@@ -111,6 +111,9 @@ main { flex: 1; overflow-y: auto; padding: 4px 16px 16px; }
 .etiket.saglikGuncel { color: var(--yesil); }
 .etiket.saglikFix { color: var(--sari); letter-spacing: 0.5px; }
 .etiket.saglikBozuk { color: var(--kirmizi); }
+button.etiket.tiklanir { background: transparent; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+button.etiket.saglikFix:hover { background: rgba(245, 196, 81, 0.15); }
+button.etiket.saglikBozuk:hover { background: rgba(255, 93, 108, 0.15); }
 .senkronBtn { flex: none; padding: 4px 10px; font-size: 12px; background: transparent; color: var(--kirmizi); border: 1px solid var(--kirmizi); border-radius: 6px; white-space: nowrap; }
 .senkronBtn:hover { background: rgba(255, 93, 108, 0.15); }
 .senkronRapor { margin: 0 0 10px; padding: 12px 14px; background: var(--kart); border: 1px solid var(--kart2); border-left: 3px solid var(--yesil); border-radius: 8px; }

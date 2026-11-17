@@ -183,7 +183,7 @@ async function modSagliklari(library, mods) {
       if (!satir.includes('"mod-repaired"')) continue;
       try {
         const o = JSON.parse(satir);
-        if (o.facts && o.facts.modId) onarim.set(o.facts.modId, Number(o.facts.repaired) || 0);
+        if (o.facts && o.facts.modId) onarim.set(o.facts.modId, { at: Date.parse(o.at), n: Number(o.facts.repaired) || 0 });
       } catch {}
     }
   } catch {}
@@ -204,9 +204,13 @@ async function modSagliklari(library, mods) {
       if (k) modId = k.id;
     }
     if (!modId) continue;
-    const n = onarim.get(modId) || 0;
-    const durum = saglikSinifi(kararlar.verdicts[modId], n);
-    if (durum) sonuc.set(anahtar, { durum, onarim: n });
+    // Onarım olayı yalnızca onarım >0 iken yazılır: karardan (checkedAt) bir dakikadan uzak eski olay bayattır, sayılmaz.
+    const karar = kararlar.verdicts[modId];
+    const o = onarim.get(modId);
+    const denetim = karar && Date.parse(karar.checkedAt);
+    const n = o && (!denetim || !o.at || Math.abs(o.at - denetim) <= 60000) ? o.n : 0;
+    const durum = saglikSinifi(karar, n);
+    if (durum) sonuc.set(anahtar, { durum, onarim: n, modId });
   }
   return sonuc;
 }
@@ -819,4 +823,98 @@ async function binSenkronla(gamePath, indeks, tb, modBin, rapor, ozetler) {
   return r.bin;
 }
 
-module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu, saglikSinifi, modSagliklari, fileHash, tarifCikar, hashWadIndeksi, senkronDenetim, reSync };
+// ---------------- Kalıcı onarım (FIX tıklaması) ----------------
+// Manager her Uygula'da modu bellekte onarır ve onarılmış hâli overlay WAD'larına yazar. Bu fonksiyon modun
+// entry'lerini overlay'deki hâlleriyle değiştirip yeni bir .fantome üretir: Manager artık onarım yapmaz (sağlıklı).
+// Başka bir uygulanan modun da sağladığı hash'lere dokunulmaz (overlay'de birleşmiş olabilirler).
+// Orijinal dosya salt-okunur; değişen yoksa çıktı yazılmaz.
+
+// WAD TOC'u bir kez okunur: hash -> {offset, compSize, tip}
+async function wadTocHaritasi(file) {
+  const fh = await fsp.open(file, "r");
+  try {
+    const bas = Buffer.alloc(272);
+    await fh.read(bas, 0, 272, 0);
+    if (bas.toString("latin1", 0, 2) !== "RW" || bas[2] !== 3) return { fh: null, harita: new Map() };
+    const count = bas.readUInt32LE(268);
+    const toc = Buffer.alloc(count * 32);
+    await fh.read(toc, 0, toc.length, 272);
+    const harita = new Map();
+    for (let i = 0; i < count; i++) {
+      const b = i * 32;
+      harita.set(toc.readBigUInt64LE(b), { offset: toc.readUInt32LE(b + 8), compSize: toc.readUInt32LE(b + 12), tip: toc[b + 20] & 0x0f });
+    }
+    return { fh, harita };
+  } catch (e) {
+    await fh.close().catch(() => {});
+    throw e;
+  }
+}
+
+async function modHashleri(file) {
+  const kume = new Set();
+  const zip = new StreamZip.async({ file });
+  try {
+    const { wadlar } = await modWadIcerigi(zip);
+    for (const { ogeler } of wadlar.values()) for (const o of ogeler) kume.add(o.hash);
+  } catch {
+  } finally {
+    await zip.close().catch(() => {});
+  }
+  return kume;
+}
+
+async function kaliciOnar(modFile, overlayDir, digerKaynaklar, ciktiFile) {
+  const baska = new Set();
+  for (const f of digerKaynaklar || []) for (const h of await modHashleri(f)) baska.add(h);
+  let overlayWadlari = [];
+  try {
+    overlayWadlari = (await fsp.readdir(overlayDir, { recursive: true })).filter((f) => /\.wad\.client$/i.test(f));
+  } catch {}
+  const sonuc = { degisen: 0, ortak: 0 };
+  const arsiv = [];
+  const zip = new StreamZip.async({ file: modFile });
+  try {
+    const { wadlar, diger } = await modWadIcerigi(zip);
+    for (const e of diger) arsiv.push({ name: e.name.replace(/\\/g, "/"), data: await zip.entryData(e) });
+    for (const { ad, ogeler } of wadlar.values()) {
+      const ovYol = overlayWadlari.find((f) => path.basename(f).toLowerCase() === ad.toLowerCase());
+      const ov = ovYol ? await wadTocHaritasi(path.join(overlayDir, ovYol)) : { fh: null, harita: new Map() };
+      try {
+        const parcalar = [];
+        for (const oge of ogeler) {
+          let data = await oge.veri();
+          const t = ov.harita.get(oge.hash);
+          if (baska.has(oge.hash)) {
+            if (t) sonuc.ortak++;
+          } else if (t && ov.fh) {
+            const blob = Buffer.alloc(t.compSize);
+            await ov.fh.read(blob, 0, t.compSize, t.offset);
+            let onarilmis = null;
+            try {
+              onarilmis = binmotor.wadEntryVeri(blob, { offset: 0, compSize: t.compSize, tip: t.tip });
+            } catch {}
+            if (onarilmis && !onarilmis.equals(data)) {
+              data = onarilmis;
+              sonuc.degisen++;
+            }
+          }
+          parcalar.push({ hash: oge.hash, data });
+        }
+        arsiv.push({ name: `WAD/${ad}`, data: binmotor.wadYaz(parcalar) });
+      } finally {
+        if (ov.fh) await ov.fh.close().catch(() => {});
+      }
+    }
+  } finally {
+    await zip.close().catch(() => {});
+  }
+  if (sonuc.degisen > 0) {
+    const gecici = `${ciktiFile}.${process.pid}.tmp`;
+    await fsp.writeFile(gecici, buildStoreZip(arsiv));
+    await fsp.rename(gecici, ciktiFile);
+  }
+  return sonuc;
+}
+
+module.exports = { Engine, readSkinInfo, buildStoreZip, kotuPaketler, dosyaSurumu, saglikSinifi, modSagliklari, fileHash, tarifCikar, hashWadIndeksi, senkronDenetim, reSync, kaliciOnar };

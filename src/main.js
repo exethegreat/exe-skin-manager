@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const StreamZip = require("node-stream-zip");
-const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu, tarifCikar, senkronDenetim, reSync, modSagliklari, fileHash } = require("./engine");
+const { Engine, readSkinInfo, buildStoreZip, dosyaSurumu, tarifCikar, senkronDenetim, reSync, modSagliklari, fileHash, kaliciOnar } = require("./engine");
 const G = require("./guncelleme");
 const modpkg = require("./modpkg");
 const { Catalog } = require("./catalog");
@@ -502,6 +502,30 @@ catalog.onYenilendi = () => {
   yayinla();
 };
 
+// Güncel yamaya senkron (⟳ düğmesi ve yama sonrası FIX tıklaması): orijinal + tarif → türev dosya.
+async function modSenkronla(s) {
+  const id = s.id;
+  if (!(await gameOk(state.gamePath))) throw new Hata("eOyunKlasoruYok");
+  const kayit = await tarifOku(id);
+  if (!kayit || !kayit.tarif) throw new Hata("eTarifYok");
+  setStatus("working", { k: "sSenkronlaniyor", v: { ad: s.name } });
+  try {
+    const { rapor, ozetler } = await reSync(s.file, kayit.tarif, state.gamePath, senkronYolu(id));
+    kayit.senkron = { yama: state.yama || "", ozetler, tarih: Date.now() };
+    await tarifYaz(id, kayit);
+    s.synced = senkronYolu(id);
+    s.syncedHash = await fileHash(s.synced); // sağlık rozeti türevin Manager kararına bakar
+    if (s.selected) secimDegisti();
+    await saveState();
+    senkronGerek.set(id, await gerekMi(s));
+    setStatus("idle", { k: "sSenkronlandi", v: { ad: s.name, n: rapor.senkronEntry } });
+    return { ...(await view()), rapor: { tur: "senkron", ...rapor } };
+  } catch (e) {
+    setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
+    throw e;
+  }
+}
+
 const handlers = {
   "durum:al": () => view(),
   "katalog:al": () => ({ champions: catalog.data.champions, adlar: catalog.adlar }),
@@ -629,26 +653,44 @@ const handlers = {
   "mod:senkronla": async (_e, id) => {
     const s = state.custom.find((x) => x.id === id);
     if (!s) return view();
-    if (!(await gameOk(state.gamePath))) throw new Hata("eOyunKlasoruYok");
-    const kayit = await tarifOku(id);
-    if (!kayit || !kayit.tarif) throw new Hata("eTarifYok");
-    setStatus("working", { k: "sSenkronlaniyor", v: { ad: s.name } });
+    return modSenkronla(s);
+  },
+  // FIX rozeti: yama modu bozduysa senkron; değilse Manager'ın overlay'deki onarılmış hâlinden kalıcı onarım.
+  "mod:onar": async (_e, id) => {
+    const s = state.custom.find((x) => x.id === id);
+    if (!s) return view();
+    if (senkronGerek.get(id)) return modSenkronla(s);
+    const sg = saglik.get(id);
+    const ovJson = await fsp.readFile(path.join(engine.library, "profiles", "bocchi", "overlay.json"), "utf8").then(JSON.parse, () => null);
+    if (!sg || !sg.modId || !ovJson || !(ovJson.enabledMods || []).includes(sg.modId)) throw new Hata("eOnarUygula");
+    if (running() && dirty) throw new Hata("eOnarUygula"); // overlay güncel seçimle kurulmamış
+    setStatus("working", { k: "sOnariliyor", v: { ad: s.name } });
     try {
-      const { rapor, ozetler } = await reSync(s.file, kayit.tarif, state.gamePath, senkronYolu(id));
-      kayit.senkron = { yama: state.yama || "", ozetler, tarih: Date.now() };
-      await tarifYaz(id, kayit);
-      s.synced = senkronYolu(id);
-      s.syncedHash = await fileHash(s.synced); // sağlık rozeti türevin Manager kararına bakar
-      if (s.selected) secimDegisti();
-      await saveState();
-      senkronGerek.set(id, await gerekMi(s));
-      setStatus("idle", { k: "sSenkronlandi", v: { ad: s.name, n: rapor.senkronEntry } });
-      return { ...(await view()), rapor };
+      const kaynak = uygulanacak(s);
+      const kaynakHash = s.synced && s.syncedHash ? s.syncedHash : s.id;
+      const secim = await fsp.readFile(path.join(engine.library, "bocchi-selection.json"), "utf8").then(JSON.parse, () => ({}));
+      const diger = (secim.packages || []).filter((p) => !String(p.sourceId || "").startsWith(kaynakHash) && p.path).map((p) => p.path);
+      const hedef = senkronYolu(id);
+      const gecici = `${hedef}.onar`;
+      const r = await kaliciOnar(kaynak, path.join(engine.library, "profiles", "bocchi", "overlay"), diger, gecici);
+      if (r.degisen > 0) {
+        await fsp.rename(gecici, hedef);
+        s.synced = hedef;
+        s.syncedHash = await fileHash(hedef);
+        if (s.selected) secimDegisti();
+        await saveState();
+        setStatus("idle", { k: "sOnarildi", v: { ad: s.name, n: r.degisen } });
+      } else {
+        setStatus("idle", { k: "sOnarimYok", v: { ad: s.name } });
+      }
+      return { ...(await view()), rapor: { tur: "onar", degisen: r.degisen, ortak: r.ortak } };
     } catch (e) {
       setStatus("error", { k: "sHata", v: { m: Hata.tanim(e) } });
       throw e;
     }
   },
+  // Tamir edilemez rozeti: onay arayüzde alınır; mod listeden ve diskten (kopya + tarif + türev) kaldırılır.
+  "mod:kaldir": (e, id) => handlers["skin:sil"](e, id),
   "oyun:yaz": async (_e, girdi) => {
     if (running()) throw new Hata("eOnceDurdur");
     if (!String(girdi || "").trim()) throw new Hata("eYolBos");

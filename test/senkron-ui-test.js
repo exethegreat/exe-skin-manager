@@ -69,17 +69,32 @@ async function hazirla() {
   };
   const lib = path.join(veri, "official-ltk-bridge", "libraries", "persistent");
   fs.mkdirSync(lib, { recursive: true });
-  fs.writeFileSync(path.join(lib, "bocchi-sync.json"), JSON.stringify({ mods: { ["1".repeat(64)]: { id: "m-yesil" }, ["2".repeat(64)]: { id: "m-kirmizi" } } }));
+  // Sarı (FIX) mod: Manager 5 onarım yaptı; overlay'de onarılmış hâli var → FIX tıklaması kalıcı onarmalı
+  const sariId = "3".repeat(16);
+  const sariFile = path.join(veri, "skinler", `${sariId}_Sari Test.fantome`);
+  fs.writeFileSync(sariFile, buildStoreZip([
+    { name: "META/info.json", data: Buffer.from('{"Name":"Sari Test"}') },
+    { name: "WAD/Map11.wad.client", data: binmotor.wadYaz([{ hash: 77n, data: Buffer.from("eski") }]) }
+  ]));
+  const ovKlasor = path.join(lib, "profiles", "bocchi", "overlay", "DATA", "FINAL", "Maps", "Shipping");
+  fs.mkdirSync(ovKlasor, { recursive: true });
+  fs.writeFileSync(path.join(ovKlasor, "Map11.wad.client"), binmotor.wadYaz([{ hash: 77n, data: Buffer.from("onarilmis") }]));
+  fs.writeFileSync(path.join(lib, "profiles", "bocchi", "overlay.json"), JSON.stringify({ enabledMods: ["m-sari"] }));
+  fs.writeFileSync(path.join(lib, "bocchi-selection.json"), JSON.stringify({ packages: [{ sourceId: "3".repeat(64), sha256: "3".repeat(64), path: sariFile }] }));
+  fs.writeFileSync(path.join(lib, "bocchi-bridge-events.jsonl"), JSON.stringify({ at: "2026-11-17T09:00:00Z", event: "mod-repaired", facts: { modId: "m-sari", repaired: 5 } }) + "\n");
+  fs.writeFileSync(path.join(lib, "bocchi-sync.json"), JSON.stringify({ mods: { ["1".repeat(64)]: { id: "m-yesil" }, ["2".repeat(64)]: { id: "m-kirmizi" }, ["3".repeat(64)]: { id: "m-sari" } } }));
   fs.writeFileSync(path.join(lib, "mod-health-verdicts.json"), JSON.stringify({ verdicts: {
     "m-yesil": { health: "healthy", counts: { fatals: 0, errors: 0, warnings: 0 }, rules: [] },
-    "m-kirmizi": { health: "unrepairable", counts: { fatals: 3, errors: 0, warnings: 0 }, rules: [{ rule: "bin/property-type" }] }
+    "m-kirmizi": { health: "unrepairable", counts: { fatals: 3, errors: 0, warnings: 0 }, rules: [{ rule: "bin/property-type" }] },
+    "m-sari": { health: "healthy", counts: { fatals: 0, errors: 0, warnings: 0 }, rules: [], checkedAt: "2026-11-17T09:00:00Z" }
   } }));
   fs.writeFileSync(path.join(veri, "durum.json"), JSON.stringify({
     gamePath, selected: {}, yama: "26.22",
     custom: [
       { id, file: modFile, name: "Senkron Test", author: "x", selected: true, tarifVar: true, yama: "26.21" },
       ekMod("1".repeat(16), "Yesil Test"),
-      ekMod("2".repeat(16), "Kirmizi Test")
+      ekMod("2".repeat(16), "Kirmizi Test"),
+      { id: sariId, file: sariFile, name: "Sari Test", author: "", selected: false, tarifVar: true }
     ]
   }));
   oyunuYaz([[1, 11, 1], [2, 12, 22], [4, 14, 4]]); // yeni yama
@@ -115,14 +130,43 @@ app.whenReady().then(async () => {
     let rapor = "";
     for (let i = 0; i < 80 && !(rapor = await js(`document.querySelector("#liste .senkronRapor")?.innerText || ""`)); i++) await bekle(250);
     kontrol("rapor kutusu", /2 değişiklik/.test(rapor), JSON.stringify(rapor));
-    kontrol("rozet kalktı", !(await js(`!!document.querySelector("#liste .etiket.saglikFix")`)));
+    const satirEtiket = (ad) => js(`(() => { const r = [...document.querySelectorAll("#liste .satir")].find(x => x.querySelector(".ad b").textContent === ${JSON.stringify(ad)}); const e = r && r.querySelector(".etiket"); return r ? (e ? e.className : "") : null; })()`);
+    kontrol("rozet kalktı", !/saglikFix/.test(await satirEtiket("Senkron Test")));
     kontrol("türev dosya oluştu", fs.existsSync(path.join(veri, "tarifler", "abcdef0123456789.synced.fantome")));
     const durum = JSON.parse(fs.readFileSync(path.join(veri, "durum.json"), "utf8"));
-    kontrol("durum.json synced alanı", /synced\.fantome$/.test(durum.custom[0].synced || ""));
+    kontrol("durum.json synced alanı", /synced\.fantome$/.test((durum.custom.find((c) => c.name === "Senkron Test") || {}).synced || ""));
     fs.writeFileSync(path.join(cikti, "senkron-2-rapor.png"), (await win.webContents.capturePage()).toPNG());
     await js(`[...document.querySelectorAll("#liste .senkronRapor button")][0].click()`);
     await bekle(200);
     kontrol("Tamam raporu kapatır", !(await js(`!!document.querySelector("#liste .senkronRapor")`)));
+
+    // Sarı FIX rozetine tıkla → kalıcı onarım (overlay'deki onarılmış hâl moda yazılır)
+    kontrol("Sari Test FIX rozeti tıklanabilir", /saglikFix tiklanir/.test(await satirEtiket("Sari Test")), await satirEtiket("Sari Test"));
+    await js(`[...document.querySelectorAll("#liste .satir")].find(x => x.querySelector(".ad b").textContent === "Sari Test").querySelector(".etiket").click()`);
+    let onarRapor = "";
+    for (let i = 0; i < 40 && !(onarRapor = await js(`document.querySelector("#liste .senkronRapor")?.innerText || ""`)); i++) await bekle(250);
+    kontrol("onarım raporu", /Onarım raporu/.test(onarRapor) && /1 bölüm/.test(onarRapor), JSON.stringify(onarRapor));
+    const onarilmis = path.join(veri, "tarifler", `${"3".repeat(16)}.synced.fantome`);
+    kontrol("onarılmış kopya oluştu", fs.existsSync(onarilmis));
+    if (fs.existsSync(onarilmis)) {
+      const StreamZip = require("node-stream-zip");
+      const z = new StreamZip.async({ file: onarilmis });
+      const w = await z.entryData("WAD/Map11.wad.client");
+      await z.close();
+      kontrol("onarılmış içerik", binmotor.wadEntryVeri(w, binmotor.wadOku(w).entries[0]).toString() === "onarilmis");
+    }
+    kontrol("orijinal dokunulmadı", fs.existsSync(path.join(veri, "skinler", `${"3".repeat(16)}_Sari Test.fantome`)));
+    await js(`document.querySelector("#liste .senkronRapor button").click()`);
+
+    // Kırmızı rozete tıkla → onay → mod listeden ve diskten kalkar
+    await js(`window.confirm = () => true; true`);
+    await js(`[...document.querySelectorAll("#liste .satir")].find(x => x.querySelector(".ad b").textContent === "Kirmizi Test").querySelector(".etiket").click()`);
+    let gitti = false;
+    for (let i = 0; i < 40 && !(gitti = (await satirEtiket("Kirmizi Test")) === null); i++) await bekle(250);
+    kontrol("Tamir edilemez tıklanınca mod kaldırıldı", gitti);
+    kontrol("dosyası silindi", !fs.existsSync(path.join(veri, "skinler", `${"2".repeat(16)}_Kirmizi Test.fantome`)));
+    // Onay verilmezse kaldırılmaz: kırmızı rozetli yeni durum yok, Yeşil rozet tıklanamaz olmalı
+    kontrol("Güncel rozeti tıklanamaz", !/tiklanir/.test(await satirEtiket("Yesil Test")));
   } catch (e) {
     log("HATA:", e.message);
     kod = 1;

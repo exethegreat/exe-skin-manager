@@ -57,9 +57,13 @@ Diğer özellikler:
     Eklenenler listede kalır: tikini kaldırırsan yalnızca devre dışı olur, silinmez. Silmek için ✕ düğmesi var.
     ⤓ düğmesi dosyanın içindekileri seçtiğin klasöre çıkarır (WAD/<wad adı>/... düzeniyle).
   - Mod durumu (kendi dosyalarının yanında, bir kez Uygula'dan sonra görünür; üzerine gelince açıklaması çıkar):
-      Güncel (yeşil)         : mod bu yamada sorunsuz çalışıyor.
-      FIX (sarı)             : mod eskimiş; motor onu onarıyor ya da bazı dosyaları düzeltilmeli. Oyunda kısmen eksik görünebilir.
-      Tamir edilemez (kırmızı): motor bu modu onaramıyor; oyunda bozuk görünebilir ya da tüm modları kapattırabilir. Tikini kaldır.
+      Güncel (yeşil)         : mod bu yamada sorunsuz çalışıyor. Bir şey yapmana gerek yok.
+      FIX (sarı)             : mod eskimiş; motor onu her Uygula'da onarıyor ya da bazı dosyaları düzeltilmeli.
+                               FIX'e TIKLA: motorun onardığı hâl modun yeni bir kopyasına kalıcı olarak yazılır
+                               (yama bozduysa önce senkron yapılır). Sonra Uygula'ya bas; rozet yeşile döner.
+                               Mod önce seçilip bir kez uygulanmış olmalı. Asıl dosyana dokunulmaz.
+      Tamir edilemez (kırmızı): motor bu modu onaramıyor; oyunda bozuk görünebilir ya da tüm modları kapattırabilir.
+                               Tamir edilemez'e TIKLA: onay verirsen mod listeden kaldırılır ve dosyası silinir.
   - "⟳ Güncel yamaya senkronla": yeni yama modunu bozduysa bu düğme çıkar. Modun kendi değişikliklerini yeni yamanın
     dosyalarına taşır ve yeni bir kopya üretir (asıl dosyana dokunulmaz). Sonra Uygula'ya bas.
   - Sol üstteki ☀ / ☾ düğmesi aydınlık ve karanlık tema arasında geçiş yapar.

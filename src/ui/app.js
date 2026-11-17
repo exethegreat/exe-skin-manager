@@ -130,10 +130,30 @@ function cizSol() {
 function saglikEtiketi(s) {
   const d = s.saglik;
   if (!d) return null;
+  // 4. öğe: tıklanınca yapılacak iş (FIX → onar, Tamir edilemez → onaylı kaldır)
   if (d.durum === "guncel") return ["saglikGuncel", T("rozetGuncel"), T("ipGuncel")];
-  if (d.durum === "fix") return ["saglikFix", T("rozetFix"), d.onarim ? T("ipFix", { n: d.onarim }) : T("ipFixSade")];
-  if (d.durum === "bozuk") return ["saglikBozuk", T("rozetBozuk"), T("ipBozuk")];
+  if (d.durum === "fix") return ["saglikFix", T("rozetFix"), (d.onarim ? T("ipFix", { n: d.onarim }) : T("ipFixSade")) + "\n" + T("ipTiklaOnar"), () => onar(s)];
+  if (d.durum === "bozuk") return ["saglikBozuk", T("rozetBozuk"), T("ipBozuk") + "\n" + T("ipTiklaKaldir"), () => kaldir(s)];
   return null;
+}
+
+async function onar(s) {
+  if (senkronSuren) return;
+  senkronSuren = true;
+  try {
+    const v = await cagir(window.api.onar(s.id));
+    if (v && v.rapor) {
+      senkronRapor = { ad: s.name, rapor: v.rapor };
+      ciz();
+    }
+  } finally {
+    senkronSuren = false;
+  }
+}
+
+function kaldir(s) {
+  if (!window.confirm(T("dKaldirSoru", { ad: s.name }))) return;
+  cagir(window.api.kaldir(s.id));
 }
 
 // Mod Re-sync: son senkronun raporu (kendi dosyalarım sayfasının başında gösterilir, Tamam ile kapanır).
@@ -157,12 +177,18 @@ function senkronRaporKutusu() {
   const { ad, rapor } = senkronRapor;
   const k = el("div", "senkronRapor");
   k.setAttribute("role", "status");
-  k.append(el("b", null, T("rapBaslik", { ad })));
-  k.append(el("p", null, T("rapEntry", { n: rapor.senkronEntry })));
+  if (rapor.tur === "onar") {
+    k.append(el("b", null, T("rapOnarBaslik", { ad })));
+    k.append(el("p", null, rapor.degisen ? T("rapOnarildi", { n: rapor.degisen }) : T("rapOnarimYok")));
+    if (rapor.ortak) k.append(el("p", "uyari", T("rapOrtak", { n: rapor.ortak })));
+  } else {
+    k.append(el("b", null, T("rapBaslik", { ad })));
+    k.append(el("p", null, T("rapEntry", { n: rapor.senkronEntry })));
+  }
   const kisalt = (a) => (a.length > 8 ? a.slice(0, 8).join(", ") + ", …" : a.join(", "));
-  if (rapor.tipUyumsuz.length) k.append(el("p", "uyari", T("rapTipUyumsuz", { n: rapor.tipUyumsuz.length, liste: kisalt(rapor.tipUyumsuz) })));
-  if (rapor.yokBin.length) k.append(el("p", "uyari", T("rapYokBin", { n: rapor.yokBin.length, liste: kisalt(rapor.yokBin) })));
-  if (rapor.eksikAsset.length) k.append(el("p", "uyari", T("rapEksikAsset", { n: rapor.eksikAsset.length, liste: kisalt(rapor.eksikAsset) })));
+  if (rapor.tur !== "onar" && rapor.tipUyumsuz.length) k.append(el("p", "uyari", T("rapTipUyumsuz", { n: rapor.tipUyumsuz.length, liste: kisalt(rapor.tipUyumsuz) })));
+  if (rapor.tur !== "onar" && rapor.yokBin.length) k.append(el("p", "uyari", T("rapYokBin", { n: rapor.yokBin.length, liste: kisalt(rapor.yokBin) })));
+  if (rapor.tur !== "onar" && rapor.eksikAsset.length) k.append(el("p", "uyari", T("rapEksikAsset", { n: rapor.eksikAsset.length, liste: kisalt(rapor.eksikAsset) })));
   const b = el("button", "ikincil", T("rapTamam"));
   b.addEventListener("click", () => {
     senkronRapor = null;
@@ -181,8 +207,16 @@ function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senk
   if (alt) metin.append(el("small", null, alt));
   s.append(el("span", "kutu" + (yuvarlak ? " yuvarlak" : ""), "✓"), metin);
   if (etiket) {
-    const e = el("span", "etiket " + etiket[0], etiket[1]);
+    // İşi olan rozet (FIX / Tamir edilemez) tıklanabilir düğmedir; satırın seç/kaldır tıklamasını tetiklemez.
+    const e = el(etiket[3] ? "button" : "span", "etiket " + etiket[0] + (etiket[3] ? " tiklanir" : ""), etiket[1]);
     if (etiket[2]) e.title = etiket[2];
+    if (etiket[3]) {
+      e.setAttribute("aria-label", etiket[1] + " — " + etiket[2]);
+      e.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        etiket[3]();
+      });
+    }
     s.append(e);
   }
   if (senkron) {
