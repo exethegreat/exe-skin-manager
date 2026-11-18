@@ -10,6 +10,7 @@ const G = require("./guncelleme");
 const modpkg = require("./modpkg");
 const { Catalog } = require("./catalog");
 const { Hata } = require("./hata");
+const MD = require("./modduzenle");
 const diller = require("./ui/diller");
 
 const SKIN_RE = /\.(fantome|zip|wad|wad\.client|modpkg)$/i;
@@ -400,6 +401,67 @@ async function addSkinFile(src) {
   return true;
 }
 
+// Mod düzenleme (✎): yeni içerik yeni dosyaya yazılır, kayıt yerinde güncellenir; kimliğe bağlı tarif / senkron türevi /
+// rozet önbellekleri taşınır (yalnız META değiştiyse) ya da yenilenir (WAD değiştiyse).
+function duzenlemeTemizle(d) {
+  const yazi = (v) => (typeof v === "string" ? v : "");
+  const b = (d && d.bilgi) || {};
+  return {
+    bilgi: { Name: yazi(b.Name), Author: yazi(b.Author), Version: yazi(b.Version), Home: yazi(b.Home), Heart: yazi(b.Heart), Description: yazi(b.Description) },
+    resim: d && (d.resim === "sil" || (typeof d.resim === "string" && /\.png$/i.test(d.resim))) ? d.resim : null,
+    wadSil: Array.isArray(d && d.wadSil) ? d.wadSil.filter((x) => typeof x === "string") : [],
+    wadEkle: Array.isArray(d && d.wadEkle) ? d.wadEkle.filter((x) => x && typeof x.yol === "string").map((x) => ({ yol: x.yol })) : [],
+    bilinmeyenSil: !!(d && d.bilinmeyenSil)
+  };
+}
+
+async function modDuzenle(s, d) {
+  if (!d.bilgi.Name.trim()) throw new Hata("uAdBos");
+  if (senkronIs) await senkronIs; // denetim eski kimlikle tarif yazmasın
+  const r = await MD.yenidenPaketle(s.file, d);
+  const zip = buildStoreZip(r.girdiler);
+  const yeniId = crypto.createHash("sha256").update(zip).digest("hex").slice(0, 16);
+  if (yeniId === s.id) return false;
+  if (state.custom.some((x) => x.id === yeniId)) throw new Hata("eAyniMod");
+  const ad = r.info.Name;
+  const guvenli = ad.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim().replace(/[. ]+$/, "") || "mod";
+  const yeniDosya = path.join(skinsDir, `${yeniId}_${guvenli}.fantome`);
+  await fsp.writeFile(yeniDosya + ".tmp", zip);
+  await fsp.rename(yeniDosya + ".tmp", yeniDosya);
+
+  const eskiId = s.id;
+  const eskiDosya = s.file;
+  const tas = MD.kimlikTasima({ wadDegisti: r.wadDegisti, synced: s.synced && fs.existsSync(s.synced) ? s.synced : "" });
+  Object.assign(s, { id: yeniId, file: yeniDosya, name: ad, author: r.info.Author === "Unknown" ? "" : r.info.Author, version: r.info.Version || "" });
+  const yeniAd = (eski, yeni) => fsp.rename(eski, yeni).catch(() => {});
+  if (tas.tarifTasi) await yeniAd(tarifYolu(eskiId), tarifYolu(yeniId));
+  else await fsp.rm(tarifYolu(eskiId), { force: true });
+  if (tas.senkronTasi) {
+    await yeniAd(senkronYolu(eskiId), senkronYolu(yeniId));
+    s.synced = senkronYolu(yeniId);
+  } else {
+    await fsp.rm(senkronYolu(eskiId), { force: true });
+    delete s.synced;
+    delete s.syncedHash;
+  }
+  const gerek = senkronGerek.get(eskiId);
+  senkronGerek.delete(eskiId);
+  if (tas.tarifYeniden) {
+    s.tarifVar = false;
+    await tarifKaydet(s); // düzenlenmiş hâl o an çalışan hâl sayılır (eklemedeki kural)
+    senkronGerek.set(yeniId, false);
+  } else if (gerek !== undefined) senkronGerek.set(yeniId, gerek);
+  const sg = saglik.get(eskiId);
+  saglik.delete(eskiId);
+  if (sg && tas.senkronTasi) saglik.set(yeniId, sg); // rozet senkron türevinin kararına bakıyor: türev aynı
+  if (path.dirname(eskiDosya) === skinsDir && eskiDosya !== yeniDosya) await fsp.rm(eskiDosya, { force: true });
+  if (s.selected) secimDegisti();
+  await saveState();
+  return true;
+}
+
+const gozatDir = path.join(require("node:os").tmpdir(), "exe-skin-gozat");
+
 async function addPaths(paths) {
   let n = 0;
   let ilkHata = null;
@@ -704,6 +766,50 @@ const handlers = {
   },
   // Tamir edilemez rozeti: onay arayüzde alınır; mod listeden ve diskten (kopya + tarif + türev) kaldırılır.
   "mod:kaldir": (e, id) => handlers["skin:sil"](e, id),
+  // ✎ Mod düzenleme penceresi
+  "mod:icerik": async (_e, id) => {
+    const s = state.custom.find((x) => x.id === id);
+    if (!s) throw new Hata("eModYok");
+    const ic = await MD.modIcerigi(s.file);
+    return { id, ad: s.name, ...ic };
+  },
+  "mod:wadSec": async () => {
+    const r = await dialog.showOpenDialog(win, { title: T("wadEkle"), properties: ["openFile", "multiSelections"], filters: [{ name: "WAD", extensions: ["client", "wad"] }] });
+    return r.canceled ? [] : r.filePaths;
+  },
+  "mod:wadKlasorSec": async () => {
+    const r = await dialog.showOpenDialog(win, { title: T("wadKlasorEkle"), properties: ["openDirectory", "multiSelections"] });
+    return r.canceled ? [] : r.filePaths;
+  },
+  "mod:resimSec": async () => {
+    const r = await dialog.showOpenDialog(win, { title: T("resimSec"), properties: ["openFile"], filters: [{ name: "PNG", extensions: ["png"] }] });
+    return r.canceled ? null : r.filePaths[0];
+  },
+  "mod:gozat": async (_e, id) => {
+    const s = state.custom.find((x) => x.id === id);
+    if (!s) throw new Hata("eModYok");
+    const hedef = path.join(gozatDir, id);
+    await fsp.rm(hedef, { recursive: true, force: true });
+    await fsp.mkdir(hedef, { recursive: true });
+    await icerikCikar(s, hedef);
+    shell.openPath(hedef);
+    return view();
+  },
+  "mod:duzenle": async (_e, id, ham) => {
+    const s = state.custom.find((x) => x.id === id);
+    if (!s) throw new Hata("eModYok");
+    const ad = s.name;
+    setStatus("working", { k: "sModPaketleniyor", v: { ad } });
+    try {
+      const degisti = await modDuzenle(s, duzenlemeTemizle(ham));
+      state.custom.sort((a, b) => a.name.localeCompare(b.name, dil));
+      setStatus("idle", degisti ? { k: "sModGuncellendi", v: { ad: s.name } } : { k: "sModAyni", v: { ad } });
+    } catch (e) {
+      setStatus("idle", { k: "ilkDurum" });
+      throw e;
+    }
+    return view();
+  },
   "oyun:yaz": async (_e, girdi) => {
     if (running()) throw new Hata("eOnceDurdur");
     if (!String(girdi || "").trim()) throw new Hata("eYolBos");
@@ -902,6 +1008,7 @@ if (!app.requestSingleInstanceLock()) {
     if (kapaniyor) return;
     e.preventDefault();
     kapaniyor = true;
+    fs.rmSync(gozatDir, { recursive: true, force: true }); // "Göz at" geçici klasörleri
     yenidenDeneme = YENIDEN_EN_COK; // kapanırken motor kapanışı otomatik yeniden denemeyi tetiklemesin
     engine
       .shutdown()

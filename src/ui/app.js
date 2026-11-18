@@ -205,7 +205,7 @@ function senkronRaporKutusu() {
   return k;
 }
 
-function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senkron }) {
+function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senkron, duzenle }) {
   const s = el("div", "satir" + (secili ? " secili" : ""));
   s.setAttribute("role", yuvarlak ? "radio" : "checkbox");
   s.setAttribute("aria-checked", String(!!secili));
@@ -235,6 +235,16 @@ function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senk
     });
     s.append(b);
   }
+  if (duzenle) {
+    const b = el("button", "sil duzenleBtn", "✎");
+    b.title = duzenle[0];
+    b.setAttribute("aria-label", duzenle[0]);
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      duzenle[1]();
+    });
+    s.append(b);
+  }
   if (cikar) {
     const b = el("button", "sil", "⤓");
     b.title = cikar[0];
@@ -257,6 +267,193 @@ function skinSatiri({ ad, alt, secili, yuvarlak, etiket, tikla, sil, cikar, senk
   }
   tiklanir(s, tikla);
   return s;
+}
+
+// ✎ Mod düzenleme penceresi: Bilgi (META/info.json + resim) ve Dosyalar (WAD'lar) sekmeleri.
+// Değişiklikler pencerede bekler; Uygula hepsini tek seferde ana sürece gönderir (mod yeniden paketlenir).
+async function duzenlePenceresi(s) {
+  const r = await window.api.modIcerik(s.id);
+  if (!r.ok) {
+    hata = r.hata;
+    ciz();
+    return;
+  }
+  const ic = r.veri;
+  const bekleyen = { wadSil: new Set(), wadEkle: [], resim: null };
+  const onceki = document.activeElement;
+  const perde = el("div", "perde");
+  const kutu = el("div", "pencere");
+  kutu.setAttribute("role", "dialog");
+  kutu.setAttribute("aria-modal", "true");
+  const baslik = el("h2", null, T("dBaslik", { ad: ic.ad }));
+  baslik.id = "pBaslik";
+  kutu.setAttribute("aria-labelledby", "pBaslik");
+  const kapat = () => {
+    perde.remove();
+    if (onceki && onceki.focus) onceki.focus();
+  };
+
+  // Sekmeler
+  const sekmeler = el("div", "sekmeler");
+  sekmeler.setAttribute("role", "tablist");
+  const bilgiPanel = el("div", "panel");
+  const dosyaPanel = el("div", "panel");
+  dosyaPanel.hidden = true;
+  const sekmeBtn = (ad, panel) => {
+    const b = el("button", "sekme", ad);
+    b.setAttribute("role", "tab");
+    b.addEventListener("click", () => {
+      for (const x of sekmeler.children) x.classList.toggle("aktif", x === b);
+      bilgiPanel.hidden = panel !== bilgiPanel;
+      dosyaPanel.hidden = panel !== dosyaPanel;
+    });
+    return b;
+  };
+  const bilgiSekme = sekmeBtn(T("sekmeBilgi"), bilgiPanel);
+  bilgiSekme.classList.add("aktif");
+  sekmeler.append(bilgiSekme, sekmeBtn(T("sekmeDosyalar"), dosyaPanel));
+
+  // Bilgi
+  const alanlar = {};
+  for (const [k, etiket, uzun] of [["Name", "alanAd"], ["Author", "alanYazar"], ["Version", "alanSurum"], ["Home", "alanAnaSayfa"], ["Heart", "alanDestek"], ["Description", "alanAciklama", true]]) {
+    const satir = el("label", "alan");
+    const giris = el(uzun ? "textarea" : "input");
+    giris.value = typeof ic.info[k] === "string" ? ic.info[k] : "";
+    if (k === "Version") giris.maxLength = 24;
+    giris.dataset.alan = k;
+    alanlar[k] = giris;
+    satir.append(el("span", null, T(etiket)), giris);
+    bilgiPanel.append(satir);
+  }
+  const resimSatir = el("div", "alan");
+  const resimAd = el("span", "resimAd", ic.resimVar ? "image.png" : "—");
+  const resimKutu = el("span", "resimKutu");
+  const resimSecBtn = el("button", "ikincil", T("resimSec"));
+  resimSecBtn.addEventListener("click", async () => {
+    const y = await window.api.modResimSec();
+    if (y.ok && y.veri) {
+      bekleyen.resim = y.veri;
+      resimAd.textContent = y.veri.split(/[\\/]/).pop();
+    }
+  });
+  const resimSilBtn = el("button", "sil", "✕");
+  resimSilBtn.title = T("resimKaldir");
+  resimSilBtn.setAttribute("aria-label", T("resimKaldir"));
+  resimSilBtn.addEventListener("click", () => {
+    bekleyen.resim = "sil";
+    resimAd.textContent = "—";
+  });
+  resimKutu.append(resimSecBtn, resimAd, resimSilBtn);
+  resimSatir.append(el("span", null, T("alanResim")), resimKutu);
+  bilgiPanel.append(resimSatir);
+
+  // Dosyalar
+  const wadListe = el("div", "wadListe");
+  const wadCiz = () => {
+    wadListe.textContent = "";
+    for (const w of ic.wadlar) {
+      const sat = el("div", "wadSatir" + (bekleyen.wadSil.has(w.ad) ? " silinecek" : ""));
+      const ad = el("span", "ad");
+      ad.append(el("b", null, w.ad), el("small", null, T("wadDosya", { n: w.dosya })));
+      const b = el("button", "sil", bekleyen.wadSil.has(w.ad) ? "↺" : "✕");
+      b.title = T("listedenKaldir");
+      b.setAttribute("aria-label", T("listedenKaldir") + ": " + w.ad);
+      b.addEventListener("click", () => {
+        if (bekleyen.wadSil.has(w.ad)) bekleyen.wadSil.delete(w.ad);
+        else bekleyen.wadSil.add(w.ad);
+        wadCiz();
+      });
+      sat.append(ad, b);
+      wadListe.append(sat);
+    }
+    bekleyen.wadEkle.forEach((w, i) => {
+      const sat = el("div", "wadSatir yeni");
+      const ad = el("span", "ad");
+      ad.append(el("b", null, "+ " + w.yol.split(/[\\/]/).pop()), el("small", null, w.yol));
+      const b = el("button", "sil", "✕");
+      b.title = T("listedenKaldir");
+      b.setAttribute("aria-label", T("listedenKaldir"));
+      b.addEventListener("click", () => {
+        bekleyen.wadEkle.splice(i, 1);
+        wadCiz();
+      });
+      sat.append(ad, b);
+      wadListe.append(sat);
+    });
+  };
+  wadCiz();
+  const bilinmeyen = el("label", "onay");
+  const bilinmeyenKutu = el("input");
+  bilinmeyenKutu.type = "checkbox";
+  bilinmeyenKutu.disabled = !ic.bilinmeyen;
+  bilinmeyen.append(bilinmeyenKutu, el("span", null, T("bilinmeyenSil", { n: ic.bilinmeyen })));
+  const dosyaDugmeler = el("div", "pDugmeler");
+  const ekleBtn = (ad, fn) => {
+    const b = el("button", "ikincil", ad);
+    b.addEventListener("click", async () => {
+      const y = await fn();
+      if (y.ok && Array.isArray(y.veri)) {
+        for (const yol of y.veri) bekleyen.wadEkle.push({ yol });
+        wadCiz();
+      }
+    });
+    return b;
+  };
+  const gozatBtn = el("button", "ikincil", T("modGozat"));
+  gozatBtn.addEventListener("click", () => cagir(window.api.modGozat(s.id)));
+  dosyaDugmeler.append(ekleBtn(T("wadEkle"), window.api.modWadSec), ekleBtn(T("wadKlasorEkle"), window.api.modWadKlasorSec), gozatBtn);
+  dosyaPanel.append(wadListe, bilinmeyen, dosyaDugmeler);
+
+  // Alt satır
+  const pHata = el("div", "pHata");
+  pHata.setAttribute("role", "alert");
+  const kapatBtn = el("button", "ikincil", T("kapat"));
+  kapatBtn.addEventListener("click", kapat);
+  const uygulaBtn = el("button", "ana", T("uygulaDuzenle"));
+  const durumGuncelle = () => {
+    const bos = !alanlar.Name.value.trim();
+    uygulaBtn.disabled = bos || !!g.running;
+    pHata.textContent = bos ? T("uAdBos") : "";
+  };
+  alanlar.Name.addEventListener("input", durumGuncelle);
+  uygulaBtn.addEventListener("click", async () => {
+    uygulaBtn.disabled = kapatBtn.disabled = true;
+    const bilgi = {};
+    for (const [k, giris] of Object.entries(alanlar)) bilgi[k] = giris.value;
+    const y = await window.api.modDuzenle(s.id, { bilgi, resim: bekleyen.resim, wadSil: [...bekleyen.wadSil], wadEkle: bekleyen.wadEkle, bilinmeyenSil: bilinmeyenKutu.checked });
+    kapatBtn.disabled = false;
+    if (!y.ok) {
+      pHata.textContent = y.hata;
+      uygulaBtn.disabled = false;
+      return;
+    }
+    hata = null;
+    if (gorunumUygula(y.veri)) ciz();
+    kapat();
+  });
+  const alt = el("div", "pAlt");
+  alt.append(pHata, kapatBtn, uygulaBtn);
+  durumGuncelle();
+
+  kutu.append(baslik, sekmeler, bilgiPanel, dosyaPanel, alt);
+  kutu.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") kapat();
+    if (e.key !== "Tab") return;
+    const odak = [...kutu.querySelectorAll("button, input, textarea")].filter((x) => !x.disabled && x.offsetParent);
+    if (!odak.length) return;
+    const ilk = odak[0];
+    const son = odak[odak.length - 1];
+    if (e.shiftKey && document.activeElement === ilk) {
+      e.preventDefault();
+      son.focus();
+    } else if (!e.shiftKey && document.activeElement === son) {
+      e.preventDefault();
+      ilk.focus();
+    }
+  });
+  perde.append(kutu);
+  document.body.append(perde);
+  alanlar.Name.focus();
 }
 
 // Renk paketi noktası: iki renkli olanlar çapraz bölünür; rengin adı araç ipucu olarak görünür.
@@ -537,6 +734,7 @@ function cizSag() {
           etiket: saglikEtiketi(s),
           tikla: () => cagir(window.api.isaretle(s.id, !s.selected)),
           senkron: s.senkronGerek ? [T("btnSenkronla"), () => senkronla(s)] : null,
+          duzenle: [T("duzenle"), () => duzenlePenceresi(s)],
           cikar: [T("cikar"), () => cagir(window.api.cikar(s.id))],
           sil: [T("listedenKaldir"), () => cagir(window.api.sil(s.id))]
         })

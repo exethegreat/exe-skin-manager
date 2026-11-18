@@ -212,3 +212,31 @@ input { user-select: text; }
 /* Sağdan sola diller (Arapça): yön tersine döner, kaydırma çubuğu ve kenarlıklar mantıksal özelliklerle uyumlanır */
 html[dir="rtl"] .imza { flex-direction: row-reverse; }
 html[dir="rtl"] .oge .ad, html[dir="rtl"] .satir .ad, html[dir="rtl"] .kartAlt, html[dir="rtl"] .ayar { text-align: start; }
+
+/* ✎ Mod düzenleme penceresi */
+.perde { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+.pencere { display: flex; flex-direction: column; gap: 12px; width: min(580px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 18px; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.pencere h2 { margin: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sekmeler { display: flex; background: var(--kart2); border-radius: 8px; overflow: hidden; }
+.sekme { flex: 1; padding: 10px; background: transparent; color: var(--soluk); border-radius: 0; font-weight: 600; }
+.sekme.aktif { color: var(--vurgu); box-shadow: inset 0 -2px 0 var(--vurgu); }
+.pencere .panel { display: flex; flex-direction: column; gap: 10px; min-height: 280px; overflow: auto; }
+.pencere .panel[hidden] { display: none; }
+.alan { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 10px; }
+.alan > span:first-child { color: var(--soluk); }
+.alan input, .alan textarea { width: 100%; padding: 8px 10px; font: inherit; color: var(--yazi); background: var(--zemin); border: 1px solid var(--cizgi); border-radius: 8px; user-select: text; }
+.alan textarea { min-height: 64px; resize: vertical; }
+.resimKutu { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.resimAd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soluk); }
+.wadListe { display: flex; flex-direction: column; gap: 6px; }
+.wadSatir { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--cizgi); border-radius: 8px; }
+.wadSatir .ad { flex: 1; min-width: 0; }
+.wadSatir .ad b, .wadSatir .ad small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wadSatir .ad small { color: var(--soluk); font-size: 12px; }
+.wadSatir.silinecek .ad { text-decoration: line-through; opacity: 0.55; }
+.wadSatir.yeni { border-color: var(--yesil); }
+.pencere .onay { display: flex; align-items: center; gap: 8px; }
+.pDugmeler { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.pAlt { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.pHata { flex: 1; min-width: 0; color: var(--kirmizi); font-size: 13px; }
+@media (max-width: 480px) { .alan { grid-template-columns: 1fr; gap: 4px; } }
