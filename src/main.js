@@ -1027,6 +1027,8 @@ if (!app.requestSingleInstanceLock()) {
     senkronDenetle(); // yama sonrası bozulan modlar için rozet
     saglikYenile();
     setInterval(() => { if (!running()) senkronDenetle(); }, 10 * 60 * 1000);
+    // Uygulama açık kalırken de skin listesi tazelenir (normalde 6 saatte, yeni yama günü saatte bir).
+    setInterval(() => catalog.tazeTut(), 15 * 60 * 1000);
   });
 
   let kapaniyor = false;

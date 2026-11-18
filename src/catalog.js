@@ -11,6 +11,7 @@ const DDRAGON = "https://ddragon.leagueoflegends.com";
 const CDRAGON_TR = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/tr_tr/v1/skins.json";
 const CDRAGON_ASSET = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/";
 const TAZELIK_MS = 6 * 60 * 60 * 1000;
+const GERIDE_TAZELIK_MS = 60 * 60 * 1000; // yeni yama günü: depo Riot'tan geride kaldıysa saatte bir bakılır
 const DIL_TAZELIK_MS = 3 * 24 * 60 * 60 * 1000;
 const SEMA = 7;
 const DIL_SEMA = 1;
@@ -21,6 +22,25 @@ async function getJson(url, ms = 25000) {
   const r = await fetch(url, { signal: AbortSignal.timeout(ms) });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
+}
+
+// "16.23.1" / "16.23" → karşılaştırılabilir sayı (yoksa 0)
+function surumNo(s) {
+  const m = /^(\d+)\.(\d+)/.exec(String(s || ""));
+  return m ? Number(m[1]) * 1000 + Number(m[2]) : 0;
+}
+
+// Skin deposu (index.json yaması), Riot'un son yamasından (Data Dragon) geride mi? Yeni yama günü depo birkaç saat geç gelir.
+function depoGeride(d) {
+  const depo = surumNo(d.patch);
+  const riot = surumNo(d.ddSurum);
+  return !!depo && !!riot && riot > depo;
+}
+
+// Liste yeniden çekilmeli mi? Eksikse hemen; depo geride kaldıysa saatte bir; değilse 6 saatte bir.
+function yenilemeGerekli(d, simdi = Date.now()) {
+  if (d.eksik) return true;
+  return simdi - (d.zaman || 0) > (depoGeride(d) ? GERIDE_TAZELIK_MS : TAZELIK_MS);
 }
 
 async function yazJson(dosya, veri) {
@@ -101,9 +121,7 @@ class Catalog {
       } catch (e) {
         throw new Hata("sListeHata", { m: e.message });
       }
-    } else if (this.data.eksik || Date.now() - (this.data.zaman || 0) > TAZELIK_MS) {
-      this.yenileArka(); // eldeki liste hemen kullanılır; yenileme arkada yapılır, açılışı geciktirmez
-    }
+    } else this.tazeTut(); // eldeki liste hemen kullanılır; gerekiyorsa yenileme arkada yapılır, açılışı geciktirmez
     for (const c of await fsp.readdir(this.skinDir, { withFileTypes: true })) {
       if (!c.isDirectory()) continue;
       for (const f of await fsp.readdir(path.join(this.skinDir, c.name))) {
@@ -111,6 +129,12 @@ class Catalog {
         if (m) this.indirilen.add(`${c.name}/${m[1]}${m[2] ? `-${m[2]}` : ""}`);
       }
     }
+  }
+
+  // Açılışta ve uygulama açıkken düzenli çağrılır: liste bayatladıysa arkada yeniler (yeni skinler kendiliğinden gelir).
+  tazeTut() {
+    if (this.data.champions.length && yenilemeGerekli(this.data)) return this.yenileArka();
+    return null;
   }
 
   yenileArka() {
@@ -393,4 +417,4 @@ class Catalog {
   }
 }
 
-module.exports = { Catalog, kimlik, renkAdi };
+module.exports = { Catalog, kimlik, renkAdi, yenilemeGerekli, depoGeride };
