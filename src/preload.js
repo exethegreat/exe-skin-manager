@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld("api", {
   skinSec: () => cagir("skin:sec"),
   skinEkle: (dosyalar) => cagir("skin:ekle", dosyalar.map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
   klasorSec: () => cagir("skin:klasorSec"),
-  cikar: (id) => cagir("skin:cikar", id),
+  cikar: (id, secenek) => cagir("skin:cikar", id, secenek),
   isaretle: (id, on) => cagir("skin:isaretle", id, on),
   sil: (id) => cagir("skin:sil", id),
   senkronla: (id) => cagir("mod:senkronla", id),

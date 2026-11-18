@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const StreamZip = require("node-stream-zip");
 const { buildStoreZip } = require("../src/engine");
-const { modIcerigi, yenidenPaketle, kimlikTasima } = require("../src/modduzenle");
+const { modIcerigi, yenidenPaketle, kimlikTasima, disaAktarGirdileri } = require("../src/modduzenle");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "skin-duzenle-"));
 const B = (s) => Buffer.from(s);
@@ -104,6 +104,16 @@ const bos = { wadSil: [], wadEkle: [], bilinmeyenSil: false, resim: null };
     const zip = new StreamZip.async({ file: z });
     assert.strictEqual(Object.keys(await zip.entries()).length, 2);
     await zip.close();
+
+    // Dışa aktarma girdileri: temizlesiz kaynakla birebir aynı; temizli dökümsüz; tek WAD → META eklenir
+    let dg = await disaAktarGirdileri(mod, { temizle: false });
+    assert.deepStrictEqual(adlar(dg), ["META/image.png", "META/info.json", "README.txt", "WAD/Ahri.wad.client", "WAD/Udyr.wad.client/data/a.bin", "WAD/Udyr.wad.client/data/a.py"]);
+    assert.deepStrictEqual(JSON.parse(bul(dg, "META/info.json").data), info, "info.json dokunulmaz");
+    dg = await disaAktarGirdileri(mod, { temizle: true });
+    assert.ok(!bul(dg, "README.txt") && !bul(dg, "WAD/Udyr.wad.client/data/a.py") && bul(dg, "WAD/Udyr.wad.client/data/a.bin"));
+    dg = await disaAktarGirdileri(tek, { temizle: false });
+    assert.deepStrictEqual(adlar(dg), ["META/info.json", "WAD/Tek.wad.client"]);
+    assert.strictEqual(JSON.parse(bul(dg, "META/info.json").data).Name, "Tek");
 
     // Kimlik taşıma kuralı
     assert.deepStrictEqual(kimlikTasima({ wadDegisti: false, synced: "x" }), { tarifTasi: true, senkronTasi: true, tarifYeniden: false });

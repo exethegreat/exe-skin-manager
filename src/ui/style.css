@@ -240,3 +240,5 @@ html[dir="rtl"] .oge .ad, html[dir="rtl"] .satir .ad, html[dir="rtl"] .kartAlt, 
 .pAlt { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .pHata { flex: 1; min-width: 0; color: var(--kirmizi); font-size: 13px; }
 @media (max-width: 480px) { .alan { grid-template-columns: 1fr; gap: 4px; } }
+.pencere.kucuk { width: min(440px, calc(100vw - 32px)); }
+.disaSecenek .ikincil { flex: 1; min-width: 110px; padding: 12px; font-weight: 600; }

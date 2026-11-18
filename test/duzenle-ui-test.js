@@ -96,6 +96,33 @@ app.whenReady().then(async () => {
     kontrol("Ahri moddan gitti", !adlar.some((a) => /Ahri/.test(a)) && adlar.some((a) => /Udyr/.test(a)), JSON.stringify(adlar));
     kontrol("eski dosya silindi", d.file !== eskiDosya && !fs.existsSync(eskiDosya));
     kontrol("listede tek mod", (await js(`document.querySelectorAll("#liste .satir").length`)) === 1);
+
+    // ⤓ Dışa aktar: seçim penceresi; .fantome kaydet penceresi sahte yolla yanıtlanır
+    const { dialog } = require("electron");
+    const hedefDosya = path.join(veri, "disa", "Yeni Ad 2.0.fantome");
+    fs.mkdirSync(path.dirname(hedefDosya), { recursive: true });
+    let onerilen = "";
+    dialog.showSaveDialog = async (_w, o) => {
+      onerilen = o.defaultPath;
+      return { canceled: false, filePath: hedefDosya };
+    };
+    const disaBtn = `[...document.querySelectorAll("#liste .satir .sil")].find(b => b.textContent === "⤓")`;
+    await js(`${disaBtn}.click()`);
+    for (let i = 0; i < 40 && !(await js(`!!document.querySelector(".pencere.kucuk")`)); i++) await bekle(100);
+    const turler = await js(`[...document.querySelectorAll(".pencere.kucuk [data-tur]")].map(b => b.dataset.tur)`);
+    kontrol("dışa aktar seçenekleri", JSON.stringify(turler) === JSON.stringify(["klasor", "fantome", "zip"]), JSON.stringify(turler));
+    kontrol("temizlenecek yokken kutu pasif", await js(`document.querySelector(".pencere.kucuk input[type=checkbox]").disabled`));
+    await bekle(300);
+    fs.writeFileSync(path.join(cikti, "duzenle-3-disa.png"), (await win.webContents.capturePage()).toPNG());
+    await js(`document.querySelector(".pencere.kucuk [data-tur=fantome]").click()`);
+    for (let i = 0; i < 40 && !fs.existsSync(hedefDosya); i++) await bekle(150);
+    kontrol("önerilen ad", onerilen === "Yeni Ad 2.0.fantome", onerilen);
+    kontrol(".fantome yazıldı", fs.existsSync(hedefDosya) && JSON.stringify((await zipAdlari(hedefDosya)).sort()) === JSON.stringify(["META/info.json", "WAD/Udyr.wad.client/data/a.bin"]));
+    kontrol("pencere kapandı (dışa)", !(await js(`!!document.querySelector(".pencere")`)));
+    await js(`${disaBtn}.click()`);
+    for (let i = 0; i < 40 && !(await js(`!!document.querySelector(".pencere.kucuk")`)); i++) await bekle(100);
+    await js(`[...document.querySelectorAll(".pencere.kucuk .pAlt button")][0].click()`);
+    kontrol("Kapat kapatır", !(await js(`!!document.querySelector(".pencere")`)));
   } catch (e) {
     log("HATA:", e.message);
     kod = 1;

@@ -153,6 +153,17 @@ async function yenidenPaketle(file, d) {
   return { girdiler, info, wadDegisti: imza(eski) !== imza(girdiler) };
 }
 
+// Dışa aktarma (⤓): modun girdileri olduğu gibi; temizle → metin dökümleri atılır; tek WAD dosyasına META eklenir.
+async function disaAktarGirdileri(file, { temizle } = {}) {
+  let girdiler = await girdileriOku(file);
+  if (temizle) girdiler = girdiler.filter((g) => !bilinmeyenMi(g.name));
+  if (!girdiler.some((g) => kucuk(g.name) === INFO)) {
+    const ad = path.basename(file).replace(/\.(wad\.client|wad|fantome|zip)$/i, "");
+    girdiler.unshift({ name: "META/info.json", data: Buffer.from(JSON.stringify({ Name: ad, Author: "", Version: "1.0.0", Description: "" }, null, 2)) });
+  }
+  return girdiler;
+}
+
 // Kimlik değişince ne taşınır: yalnız META değiştiyse tarif ve senkron türevi yeni kimliğe taşınır;
 // WAD değiştiyse ikisi de geçersizdir, tarif o anki yamadan yeniden çıkarılır.
 function kimlikTasima({ wadDegisti, synced }) {
@@ -160,4 +171,4 @@ function kimlikTasima({ wadDegisti, synced }) {
   return { tarifTasi: true, senkronTasi: !!synced, tarifYeniden: false };
 }
 
-module.exports = { modIcerigi, yenidenPaketle, wadGirdileri, kimlikTasima };
+module.exports = { modIcerigi, yenidenPaketle, wadGirdileri, kimlikTasima, disaAktarGirdileri };

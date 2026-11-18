@@ -456,6 +456,50 @@ async function duzenlePenceresi(s) {
   alanlar.Name.focus();
 }
 
+// ⤓ Dışa aktar penceresi: Klasör / .fantome / .zip; isteğe bağlı metin dökümlerini çıkan kopyadan temizler.
+async function disaAktarPenceresi(s) {
+  const r = await window.api.modIcerik(s.id);
+  const bilinmeyenSay = r.ok ? r.veri.bilinmeyen : 0;
+  const onceki = document.activeElement;
+  const perde = el("div", "perde");
+  const kutu = el("div", "pencere kucuk");
+  kutu.setAttribute("role", "dialog");
+  kutu.setAttribute("aria-modal", "true");
+  const baslik = el("h2", null, T("dDisaBaslik", { ad: s.name }));
+  baslik.id = "pDisaBaslik";
+  kutu.setAttribute("aria-labelledby", "pDisaBaslik");
+  const kapat = () => {
+    perde.remove();
+    if (onceki && onceki.focus) onceki.focus();
+  };
+  const temizle = el("label", "onay");
+  const temizleKutu = el("input");
+  temizleKutu.type = "checkbox";
+  temizleKutu.disabled = !bilinmeyenSay;
+  temizle.append(temizleKutu, el("span", null, T("disaTemizle", { n: bilinmeyenSay })));
+  const secenekler = el("div", "pDugmeler disaSecenek");
+  for (const [tur, etiket] of [["klasor", "disaKlasor"], ["fantome", "disaFantome"], ["zip", "disaZip"]]) {
+    const b = el("button", "ikincil", T(etiket));
+    b.dataset.tur = tur;
+    b.addEventListener("click", async () => {
+      kapat();
+      await cagir(window.api.cikar(s.id, { tur, temizle: temizleKutu.checked }));
+    });
+    secenekler.append(b);
+  }
+  const kapatBtn = el("button", "ikincil", T("kapat"));
+  kapatBtn.addEventListener("click", kapat);
+  const alt = el("div", "pAlt");
+  alt.append(kapatBtn);
+  kutu.append(baslik, secenekler, temizle, alt);
+  kutu.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") kapat();
+  });
+  perde.append(kutu);
+  document.body.append(perde);
+  secenekler.firstChild.focus();
+}
+
 // Renk paketi noktası: iki renkli olanlar çapraz bölünür; rengin adı araç ipucu olarak görünür.
 function renkNoktasi(r, aktif, sec) {
   const b = el("button", "nokta" + (aktif ? " aktif" : ""));
@@ -735,7 +779,7 @@ function cizSag() {
           tikla: () => cagir(window.api.isaretle(s.id, !s.selected)),
           senkron: s.senkronGerek ? [T("btnSenkronla"), () => senkronla(s)] : null,
           duzenle: [T("duzenle"), () => duzenlePenceresi(s)],
-          cikar: [T("cikar"), () => cagir(window.api.cikar(s.id))],
+          cikar: [T("cikar"), () => disaAktarPenceresi(s)],
           sil: [T("listedenKaldir"), () => cagir(window.api.sil(s.id))]
         })
       );

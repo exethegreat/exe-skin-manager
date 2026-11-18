@@ -666,17 +666,43 @@ const handlers = {
     if (!r.canceled) await addPaths(r.filePaths);
     return view();
   },
-  "skin:cikar": async (_e, id) => {
+  // ⤓ Dışa aktar: tur = "klasor" (klasöre açar) | "fantome" | "zip" (tek dosya). Kaynak, Uygula'nın kullandığı
+  // dosyadır (senkron / kalıcı onarım türevi varsa o). temizle → metin dökümleri çıkan kopyaya alınmaz.
+  "skin:cikar": async (_e, id, secenek) => {
     const s = state.custom.find((x) => x.id === id);
     if (!s) return view();
-    const r = await dialog.showOpenDialog(win, { title: T("dCikar"), properties: ["openDirectory", "createDirectory"] });
-    if (r.canceled) return view();
-    const guvenli = s.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim().replace(/[. ]+$/, "") || "skin";
-    const hedef = path.join(r.filePaths[0], guvenli);
-    await fsp.mkdir(hedef, { recursive: true });
-    const n = await icerikCikar(s, hedef);
-    setStatus("idle", { k: "sCikarildi", v: { n, yol: hedef } });
-    shell.openPath(hedef);
+    const tur = secenek && ["fantome", "zip"].includes(secenek.tur) ? secenek.tur : "klasor";
+    const temizle = !!(secenek && secenek.temizle);
+    const kaynak = { ...s, file: uygulanacak(s) };
+    const guvenliAd = (a) => a.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").trim().replace(/[. ]+$/, "") || "skin";
+    if (tur === "klasor") {
+      const r = await dialog.showOpenDialog(win, { title: T("dCikar"), properties: ["openDirectory", "createDirectory"] });
+      if (r.canceled) return view();
+      const hedef = path.join(r.filePaths[0], guvenliAd(s.name));
+      await fsp.mkdir(hedef, { recursive: true });
+      let n;
+      if (temizle) {
+        const girdiler = await MD.disaAktarGirdileri(kaynak.file, { temizle });
+        for (const g of girdiler) {
+          const yol = path.join(hedef, ...g.name.split("/"));
+          if (!yol.startsWith(hedef + path.sep)) continue; // zip içindeki ../ yollarına karşı
+          await fsp.mkdir(path.dirname(yol), { recursive: true });
+          await fsp.writeFile(yol, g.data);
+        }
+        n = girdiler.length;
+      } else n = await icerikCikar(kaynak, hedef);
+      setStatus("idle", { k: "sCikarildi", v: { n, yol: hedef } });
+      shell.openPath(hedef);
+      return view();
+    }
+    const oneri = guvenliAd(s.version ? `${s.name} ${s.version}` : s.name) + "." + tur;
+    const r = await dialog.showSaveDialog(win, { title: T("cikar"), defaultPath: oneri, filters: [{ name: tur === "zip" ? "ZIP" : "Fantome", extensions: [tur] }] });
+    if (r.canceled || !r.filePath) return view();
+    const zip = buildStoreZip(await MD.disaAktarGirdileri(kaynak.file, { temizle }));
+    await fsp.writeFile(r.filePath + ".tmp", zip);
+    await fsp.rename(r.filePath + ".tmp", r.filePath);
+    shell.showItemInFolder(r.filePath);
+    setStatus("idle", { k: "sDisaAktarildi", v: { yol: r.filePath } });
     return view();
   },
   "skin:ekle": async (_e, paths) => {
