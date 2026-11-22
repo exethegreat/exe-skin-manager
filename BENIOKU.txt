@@ -25,7 +25,7 @@ Bunların hiçbiri uygulamanın kendisiyle gelmez; yoksa önce bunları kur.
 
 2) KURULUM
 ----------
-  1. EXE-Skin-Manager-Setup-1.0.1.exe dosyasına çift tıkla. Yönetici izni gerekmez.
+  1. EXE-Skin-Manager-Setup-2.0.0.exe dosyasına çift tıkla. Yönetici izni gerekmez.
   2. Windows "Bilinmeyen yayıncı / SmartScreen" uyarısı çıkarsa:
        "Ek bilgi"  ->  "Yine de çalıştır"
      (Uygulama imzalı olmadığı için bu uyarı çıkması normaldir.)

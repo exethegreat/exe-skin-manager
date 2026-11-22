@@ -1,6 +1,6 @@
 {
   "name": "skin-yonetici",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "EXE Skin Manager - sade League of Legends skin yöneticisi",
   "main": "src/main.js",
   "private": true,
@@ -8,7 +8,7 @@
     "start": "electron .",
     "test:motor": "node test/motor-test.js",
     "test:ui": "electron test/ui-test.js",
-    "paketle": "electron-packager . \"EXE Skin Manager\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=src/ui/icon.ico --extra-resource=motor --extra-resource=src/ui/icon.ico --app-copyright=\"© ExeTheGreat 2016\" --win32metadata.CompanyName=ExeTheGreat --win32metadata.FileDescription=\"EXE Skin Manager\" --win32metadata.ProductName=\"EXE Skin Manager\" --ignore=\"^/(\\.veri-test|test|motor|dist|ExeIntro|build|icon\\.jfif)($|/)\"",
+    "paketle": "electron-packager . \"EXE Skin Manager\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=src/ui/icon.ico --extra-resource=motor --extra-resource=src/ui/icon.ico --app-copyright=\"© ExeTheGreat 2016\" --win32metadata.CompanyName=ExeTheGreat --win32metadata.FileDescription=\"EXE Skin Manager\" --win32metadata.ProductName=\"EXE Skin Manager\" --ignore=\"^/(\\.veri-test|test|motor|dist|ExeIntro|build|new-logo\\.jpg)($|/)\"",
     "ikon": "node build/ico-yap.js",
     "setup": "electron-builder --win nsis --x64",
     "paylasim": "npm run setup && node build/paylasim.js"

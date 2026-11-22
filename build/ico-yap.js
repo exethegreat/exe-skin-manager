@@ -1,17 +1,20 @@
-// icon.jfif -> src/ui/icon.ico (16-256 px, PNG'li ICO) + src/ui/icon.png. Kullanım: node build/ico-yap.js [kaynak]
+// new-logo.jpg (yüz kesiti) -> src/ui/icon.ico (16-256 px, PNG'li ICO) + src/ui/icon.png.
+// Kullanım: node build/ico-yap.js [kaynak]  (kaynak verilirse kare olduğu varsayılır, kesit yapılmaz)
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const kok = path.join(__dirname, "..");
-const kaynak = path.resolve(process.argv[2] || path.join(kok, "icon.jfif"));
+const kaynak = path.resolve(process.argv[2] || path.join(kok, "new-logo.jpg"));
+// new-logo.jpg 1080x1920 dikey: simge için yüzü içine alan 700x700 kare kesit
+const kesit = process.argv[2] ? "" : "crop=700:700:190:90,";
 const gecici = path.join(__dirname, "_tmp");
 const boyutlar = [16, 24, 32, 48, 64, 128, 256];
 fs.mkdirSync(gecici, { recursive: true });
 
 const pngler = boyutlar.map((s) => {
   const dosya = path.join(gecici, `i${s}.png`);
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", kaynak, "-vf", `scale=${s}:${s}:flags=lanczos,format=rgba`, "-frames:v", "1", dosya]);
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", kaynak, "-vf", `${kesit}scale=${s}:${s}:flags=lanczos,format=rgba`, "-frames:v", "1", dosya]);
   return { s, veri: fs.readFileSync(dosya) };
 });
 
